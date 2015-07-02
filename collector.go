@@ -7,12 +7,24 @@ import (
 	"strings"
 	"encoding/json"
 	"time"
-	"./redis"//can commit this and line 118/119 out for testing
+	//"./redis"//can commit this and line 118/119 out for testing
+	//"./influxdb"
 )
 
 const Data1 = "/_fetch?names=pmcd.hostname"
 const Data2 = "/_indom?instance=0,1,2,5,137,141,142,143&name=cgroup.cpuacct.stat.user"
 const Data3 = "/_fetch?names=cgroup.cpuacct.stat.user,cgroup.cpuacct.stat.system,cgroup.memory.usage,network.interface.in.bytes,network.interface.out.bytes"
+
+//var Column = [...]string{"time","sequence_number","hostname","container_name","memory_usage","page_faults","cpu_cumulative_usage","memory_working_set","rx_bytes","rx_errors","tx_bytes","tx_errors"}
+
+//vals = append(vals, "test")
+//vals =append(vals, 123)
+
+type zjson struct{
+	Name string
+	Columns []string
+	Points [][]interface{}
+}
 
 type Param []struct {
 		  Instance []int
@@ -54,23 +66,12 @@ type DataMetric2 struct {
 	}
 }
 
-/*type Timestamp struct {
-	S int64
-	US int64
+type Metric struct{
+	Timestamp int64
+	Metricname string
+	Instanceid int64
+	Value int64
 }
-type Values struct {
-	Pmid int64
-	Name string
-	Instances []Instances
-}
-type Instances struct {
-	Instance int64
-	value int64
-}
-type Json1 struct {
-	Timestamp Timestamp
-	Values []Values
-}*/
 
 func getContent(url string) ([]byte, error) {
 	// Build the request
@@ -95,7 +96,7 @@ func getContent(url string) ([]byte, error) {
 	return body, nil
 }
 
-func main(){
+func Get(){
 
 	//http://10.250.3.97:44323/pmapi/1980551490/_fetch?names=pmcd.hostname
 	//{"timestamp":{"s":1434751576,"us":161856 }, "values":[{"pmid":8388629,"name":"pmcd.hostname","instances":[
@@ -115,7 +116,7 @@ func main(){
 	{"instance":132,"name":"/docker/b23239a485b8d3d87a9489bd803d8319cdaef9642a1dfe4e35d62ede8cb690e3" },
 	{"instance":135,"name":"/user/1000.user/184.session" }]}*/
 
-	var zz = redis.GetCadvisorHosts()
+	var zz = GetCadvisorHosts()
 	fmt.Println(zz)
 
 	content, err := getContent("http://10.250.3.97:44323/pmapi/context?hostspec=localhost&polltimeout=600")
@@ -124,7 +125,6 @@ func main(){
 	} else {
 		fmt.Println(string(content))
 	}
-
 
 	var an An
 	err2 := json.Unmarshal(content, &an)
@@ -138,8 +138,6 @@ func main(){
 	if err3 != nil {
 		fmt.Println("error:", err3)
 	}
-
-
 
 	thisMap := make(map[string]map[int64]string)
 	aMap := make(map[int64]string)
@@ -197,18 +195,19 @@ func main(){
 
 	fmt.Println("4-----")
 
+
 	for {
-		c1 := make(chan string, 1)
+		c1 := make(chan []byte, 1)
 		go func() {
-			time.Sleep(time.Second * 2)
+			time.Sleep(time.Second * 5)
 			//getData(an.Context)
 			c1 <- getData(an.Context, Data3)
 		}()
 
 		select {
 		case res := <-c1:
-			fmt.Println(res)
-		case <-time.After(time.Second * 5):
+			processData(res)
+		case <-time.After(time.Second * 10):
 			fmt.Println("timeout 1")
 		}
 	}
@@ -217,22 +216,129 @@ func main(){
 
 }
 
-func getData(context int, suffix string)(result string){
+func getData(context int, suffix string)([]byte){
 	var zzz = fmt.Sprint("http://10.250.3.97:44323/pmapi/",context,suffix)
 
 	//fmt.Printf(zzz)
 	content2, err := getContent(zzz)
 	if err != nil {
 		s := err.Error()
-		return s
+		return []byte(s)
 	} else {
-		return string(content2)
+		return content2
 	}
 }
 
-func processMap(json string){
+func processData(data []byte){
+	//fmt.Println(data)
+
+	var dm5 Datametric
+
+	err6 := json.Unmarshal(data, &dm5)
+	fmt.Println(err6)
+	//fmt.Println(dm5)
+
+	//var dataArr = [][]interface{}{}
+
+	var metrics []Metric
 
 
 
+/*	dataArr = append(dataArr, []interface{}{
+		dm5.Timestamp,
+		63746048,//memory usage
+		5983276,//page faults
+		"slave5",//hostname
+		"stress60-1435691470902714993",//container_name
+		0,//rxbyte
+		0,//rxerror
+		0,//txbyte
+		0,//txerrors
+		66058462440,//cpu_cumulative_usage
+		63733760,//memory_working_set
+	})*/
 
+	instances := make(map[int64]struct{})
+
+
+	for a, b := range dm5.Values{
+		for _, c := range dm5.Values[a].Instances{
+			var tempMetrics = Metric{
+				Timestamp : dm5.Timestamp.S,
+				Metricname: b.Name,
+				Instanceid: c.Instance,
+				Value: c.Value,
+			}
+			metrics = append(metrics, tempMetrics)
+			instances[c.Instance] = struct{}{}
+
+		}
+
+
+	}
+
+	//fmt.Println("metrics length:",len(metrics))
+
+
+	var points[][]interface{}
+
+	for key := range(instances) {
+		fmt.Println(key)
+		var instanceOnly = filterByInstance(metrics, key)
+		var instance_name = filterByName(instanceOnly,"cgroup.memory.usage")
+		if len(instance_name) == 0{
+			continue
+		}
+		var memoryUsage = instance_name[0].Value
+		fmt.Println(memoryUsage)
+		var instance_name2 = filterByName(instanceOnly,"cgroup.cpuacct.stat.user")
+		var cpuUsage = instance_name2[0].Value
+		fmt.Println(cpuUsage)
+		fmt.Println("------")
+
+		points = append(points, []interface{}{
+			instance_name[0].Timestamp,
+			memoryUsage,//memory usage
+			5983276,//page faults
+			"slave5",//hostname
+			"stress60-1435691470902714993",//container_name
+			0,//rxbyte
+			0,//rxerror
+			0,//txbyte
+			0,//txerrors
+			cpuUsage,//cpu_cumulative_usage
+			63733760,//memory_working_set
+
+		})
+
+	}
+
+	//dataArr = append(dataArr, []interface{}{"test2", int64(66058462440), (time.Now().UnixNano() / 1000000) / 1000, nil})
+	//fmt.Println(dataArr)
+
+
+	//fmt.Println(points)
+	Write(points, "stats")
+
+
+}
+
+
+func filterByName(metrics []Metric, metricName string) []Metric {
+	return filter(metrics, func(metric Metric) bool { return metric.Metricname == metricName } )
+}
+
+func filterByInstance(metrics []Metric, instanceName int64) []Metric {
+	return filter(metrics, func(metric Metric) bool { return metric.Instanceid == instanceName } )
+}
+
+
+func filter(s []Metric, fn func(Metric) bool) []Metric {
+	var r []Metric // == nil
+	for _, v := range s {
+		if fn(v) {
+			r = append(r, v)
+		}
+	}
+	return r
 }
