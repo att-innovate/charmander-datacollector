@@ -1,17 +1,17 @@
 package main
 
 import (
-	"flag"
 	"bufio"
+	"flag"
 	"net"
 	"strconv"
 	"time"
 
 	"github.com/golang/glog"
-
 )
-var redisHost = flag.String("source_redis_host", "127.0.0.1:6379", "Redis IP Address:Port")
-
+//need to switch ip when deploying for prod vs local dev
+//var redisHost = flag.String("source_redis_host", "127.0.0.1:6379", "Redis IP Address:Port")
+var redisHost = flag.String("source_redis_host", "172.31.2.11:31600", "Redis IP Address:Port")
 
 func ContainerReady(containerName string) bool {
 	if redis := redisAvailable(); redis != nil {
@@ -29,11 +29,14 @@ func ContainerReady(containerName string) bool {
 }
 
 func ContainerMetered(containerName string) bool {
+
 	if redis := redisAvailable(); redis != nil {
 		defer redis.Close()
 		sendCommand(redis, "KEYS", "charmander:tasks-metered:*")
 		meteredContainerNames := *parseResult(redis, "charmander:tasks-metered:")
+
 		for _, meteredContainerName := range meteredContainerNames {
+
 			if meteredContainerName == containerName {
 				return true
 			}
@@ -43,7 +46,7 @@ func ContainerMetered(containerName string) bool {
 	return false
 }
 
-func GetCadvisorHosts() (*map[string]string) {
+func GetCadvisorHosts() map[string]string {
 	result := map[string]string{}
 
 	if redis := redisAvailable(); redis != nil {
@@ -55,11 +58,12 @@ func GetCadvisorHosts() (*map[string]string) {
 		redis.Close()
 	}
 
-	return &result
+	return result
 }
 
 func redisAvailable() net.Conn {
-	connection, error := net.DialTimeout("tcp", *redisHost, 2 * time.Second)
+
+	connection, error := net.DialTimeout("tcp", *redisHost, 2*time.Second)
 	if error != nil {
 		return nil
 	}
@@ -78,7 +82,7 @@ func parseResult(connection net.Conn, prefix string) *[]string {
 	line, _, err := bufferedInput.ReadLine()
 	if err != nil {
 		glog.Errorf("error parsing redis response %s\n", err)
-		return &[]string {}
+		return &[]string{}
 	}
 	numberOfArgs, _ := strconv.ParseInt(string(line[1:]), 10, 64)
 	args := make([]string, 0, numberOfArgs)
