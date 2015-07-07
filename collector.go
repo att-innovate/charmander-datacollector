@@ -5,8 +5,10 @@ import (
 	"fmt"
 	"io/ioutil"
 	"net/http"
+	"runtime"
 	"strings"
 	"time"
+	"reflect"
 )
 
 const DefaultStats = "/_fetch?names=cgroup.cpuacct.stat.user,cgroup.cpuacct.stat.system,cgroup.memory.usage,network.interface.in.bytes,network.interface.out.bytes"
@@ -56,6 +58,22 @@ type MetricModel struct {
 	Value      int64
 }
 
+type PreviousValue struct {
+	CPUUser int64
+	CPUSystem int64
+	MemoryUsage int64
+	MemorySystem int64
+}
+
+type GenericData struct {
+	host      string
+	contextid int
+	datamap   map[string]map[int64]string
+	data      []byte
+}
+
+var PreviousData = make(map[string]PreviousValue)
+
 func getContent(url string) ([]byte, error) {
 
 	req, err := http.NewRequest("GET", url, nil)
@@ -79,9 +97,9 @@ func getContent(url string) ([]byte, error) {
 	return body, nil
 }
 
-func meteredTask(host string, dockerId string) string{
+func meteredTask(host string, dockerId string) string {
 	meteredTasks := make(map[string]string)
-	var tempStr = fmt.Sprint("http://",host,":31300/getid/", dockerId)
+	var tempStr = fmt.Sprint("http://", host, ":31300/getid/", dockerId)
 	content, err := getContent(tempStr)
 	taskName := strings.TrimSpace(string(content[:]))
 	if err != nil {
@@ -91,7 +109,7 @@ func meteredTask(host string, dockerId string) string{
 	meteredTasks[dockerId] = taskName
 
 	if taskName, ok := meteredTasks[dockerId]; ok {
-		if ContainerMetered(taskName){
+		if ContainerMetered(taskName) {
 			return taskName
 		} else {
 			return ""
@@ -102,105 +120,116 @@ func meteredTask(host string, dockerId string) string{
 
 }
 
-func count(counter int) int{
-	counter++
-	return counter
-}
-
 func GetHost() {
 
 	var hosts = GetCadvisorHosts()
-	for _,host := range hosts {
-		go collectData(host)
+	c1 := make(chan GenericData, 1)
+
+	for _, host := range hosts {
+		PreviousData[host] = PreviousValue{CPUUser:0, CPUSystem:0, MemorySystem:0, MemoryUsage:0}
 	}
 
+	for {
+		//var PreviousData map[string]PreviousValue
+		for _, host := range hosts {
+			//PreviousData[host] = PreviousValue{}
+			//fmt.Println("TESTING HOST:",host)
+			go func(host string) {
+				time.Sleep(time.Second * 10)
+				c1 <- collectData(host)
+
+			}(host)
+		}
+
+		for i := 0; i < len(hosts); i++ {
+			res := <-c1
+
+			processData(res)
+			fmt.Println("GoRoutines:", runtime.NumGoroutine())
+			fmt.Println("NumCgoCall:", runtime.NumCgoCall())
+		}
+
+	}
 }
 
-func collectData(host string) {
+func collectData(host string) GenericData {
 
+	content, err := getContent(fmt.Sprint("http://", host, ":44323/pmapi/context?hostspec=localhost&polltimeout=600"))
+	if err != nil {
+		fmt.Println("error:", err)
+	}
 
-		fmt.Println("host :",host)
-		content, err := getContent(fmt.Sprint("http://",host,":44323/pmapi/context?hostspec=localhost&polltimeout=600"))
-		if err != nil {
-			fmt.Println("error:", err)
+	var context Context
+	err2 := json.Unmarshal(content, &context)
+	if err2 != nil {
+		fmt.Println("error2:", err2)
+	}
+
+	var unmarshalledData Datametric
+
+	response2, err3 := getContent(fmt.Sprint("http://", host, ":44323/pmapi/", context.Id, DefaultStats))
+	if err3 != nil {
+		fmt.Println("error3:", err3)
+	}
+
+	err4 := json.Unmarshal(response2, &unmarshalledData)
+	if err4 != nil {
+		fmt.Println("error4:", err4)
+	}
+
+	dataMap := make(map[string]map[int64]string)
+	instanceIdMap := make(map[int64]string)
+
+	for a, _ := range unmarshalledData.Values {
+		dataMap[unmarshalledData.Values[a].Name] = instanceIdMap
+
+		for b, _ := range unmarshalledData.Values[a].Instances {
+
+			dataMap[unmarshalledData.Values[a].Name][unmarshalledData.Values[a].Instances[b].Instance] = ""
+
 		}
+	}
 
-		var context Context
-		err2 := json.Unmarshal(content, &context)
-		if err2 != nil {
-			fmt.Println("error2:", err2)
-		}
+	var s = ""
+	for a := range dataMap[unmarshalledData.Values[0].Name] {
+		s = fmt.Sprint(s, a, ",")
+	}
+	s = strings.TrimSuffix(s, ",")
 
-		var unmarshalledData Datametric
+	var instanceNum = s
 
-		response2, err3 := getContent(fmt.Sprint("http://",host,":44323/pmapi/", context.Id, DefaultStats))
-		if err3 != nil {
-			fmt.Println("error3:", err3)
-		}
+	var secondCallParams = fmt.Sprint("/_indom?instance=", instanceNum, "&name=", unmarshalledData.Values[0].Name)
 
-		err4 := json.Unmarshal(response2, &unmarshalledData)
-		if err4 != nil {
-			fmt.Println("error4:", err4)
-		}
+	var secondCallData SecondCallDataMetric
 
-		dataMap := make(map[string]map[int64]string)
-		instanceIdMap := make(map[int64]string)
+	response, err5 := getContent(fmt.Sprint("http://", host, ":44323/pmapi/", context.Id, secondCallParams))
+	if err5 != nil {
+		fmt.Println("error5:", err5)
+	}
+	err6 := json.Unmarshal(response, &secondCallData)
+	if err6 != nil {
+		fmt.Println("error6:", err6)
+	}
+	//fmt.Println(secondCallData)
+	for _, b := range secondCallData.Instances {
+		dataMap[unmarshalledData.Values[0].Name][b.Instance] = b.Name
+	}
 
-		for a, _ := range unmarshalledData.Values {
-			dataMap[unmarshalledData.Values[a].Name] = instanceIdMap
+	dataFromGetData := getData(host, context.Id, DefaultStats)
 
-			for b, _ := range unmarshalledData.Values[a].Instances {
-
-				dataMap[unmarshalledData.Values[a].Name][unmarshalledData.Values[a].Instances[b].Instance] = ""
-
-			}
-		}
-
-		var s = ""
-		for a := range dataMap[unmarshalledData.Values[0].Name] {
-			s = fmt.Sprint(s, a, ",")
-		}
-		s = strings.TrimSuffix(s, ",")
-
-		var instanceNum = s
-
-		var secondCallParams = fmt.Sprint("/_indom?instance=", instanceNum, "&name=", unmarshalledData.Values[0].Name)
-
-		var secondCallData SecondCallDataMetric
-
-		response, err5 := getContent(fmt.Sprint("http://",host,":44323/pmapi/", context.Id, secondCallParams))
-		if err5 != nil {
-			fmt.Println("error5:", err5)
-		}
-		err6 := json.Unmarshal(response, &secondCallData)
-		if err6 != nil {
-			fmt.Println("error6:", err6)
-		}
-		//fmt.Println(secondCallData)
-		for _, b := range secondCallData.Instances {
-			dataMap[unmarshalledData.Values[0].Name][b.Instance] = b.Name
-		}
-
-		for {
-			c1 := make(chan []byte, 1)
-			go func() {
-				time.Sleep(time.Second * 2)
-				c1 <- getData(host, context.Id, DefaultStats)
-			}()
-
-			select {
-			case res := <-c1:
-				processData(host, res, dataMap)
-			case <-time.After(time.Second * 10):
-				fmt.Println("timeout 1")
-			}
-		}
-
+	var returnObj = GenericData{
+		data:      dataFromGetData,
+		datamap:   dataMap,
+		contextid: context.Id,
+		host:      host,
+		//PreviousData:map[string]PreviousValue{},
+	}
+	return returnObj
 
 }
 
 func getData(host string, context int, suffix string) []byte {
-	var combinedURL = fmt.Sprint("http://",host,":44323/pmapi/", context, suffix)
+	var combinedURL = fmt.Sprint("http://", host, ":44323/pmapi/", context, suffix)
 
 	content, err := getContent(combinedURL)
 	if err != nil {
@@ -211,7 +240,11 @@ func getData(host string, context int, suffix string) []byte {
 	}
 }
 
-func processData(host string, data []byte, instanceIdNameMapping map[string]map[int64]string) {
+//func processData(host string, data []byte, instanceIdNameMapping map[string]map[int64]string) {
+func processData(gData GenericData) {
+	var host = gData.host
+	var data = gData.data
+	var instanceIdNameMapping = gData.datamap
 
 	var unmarshalledData2 Datametric
 
@@ -253,28 +286,61 @@ func processData(host string, data []byte, instanceIdNameMapping map[string]map[
 
 		if key == 0 {
 			var instance_name = filterByName(instanceOnly, "cgroup.cpuacct.stat.system")
-			var cpuUsage = instance_name[0].Value
+			var cpuUsageSystem = instance_name[0].Value
 
 			var instance_name2 = filterByName(instanceOnly, "cgroup.memory.usage")
 			var memoryUsage = instance_name2[0].Value
 
-			machinePoints = append(machinePoints, []interface{}{
-				instance_name[0].Timestamp,
-				host, //hostname
-				"/", //container_name
-				memoryUsage, //memory usage
-				nil,
-				cpuUsage, //cpu_cumulative_usage
-				nil,
-				0, //rx bytes
-				0, //rx error
-				0, //tx bytes
-				0, //tx error
+			var instance_name3 = filterByName(instanceOnly, "cgroup.cpuacct.stat.user")
+			var cpuUsageUser = instance_name3[0].Value
 
-			})
+			fmt.Println("CPUSystem:",cpuUsageSystem)
+			fmt.Println("CPUUser:",cpuUsageUser)
+
+			if PreviousData[host].CPUSystem == 0 {
+
+
+				PreviousData[host] = PreviousValue{
+					CPUSystem : cpuUsageSystem,
+					CPUUser : cpuUsageUser,
+					MemoryUsage : memoryUsage,
+				}
+
+				fmt.Println("PreviousData[host].CPUSystem:",PreviousData[host].CPUSystem)
+
+			} else {
+				fmt.Println(reflect.TypeOf((cpuUsageSystem - PreviousData[host].CPUSystem)))
+				fmt.Println("(cpuUsageSystem - PreviousData[host].CPUSystem):",(cpuUsageSystem - PreviousData[host].CPUSystem))
+				fmt.Println("(cpuUsageSystem - PreviousData[host].CPUSystem)/1000.000:",float64(cpuUsageSystem - PreviousData[host].CPUSystem)/float64(10.000))
+				fmt.Println("(cpuUsageSystem - PreviousData[host].CPUSystem)/1000*100:",float64(cpuUsageSystem - PreviousData[host].CPUSystem)/float64(10.000))
+
+				var CPUSystemPercentage = (cpuUsageSystem - PreviousData[host].CPUSystem) / 10.000
+				var CPUUserPercentage = (cpuUsageUser - PreviousData[host].CPUUser) / 10.000
+				fmt.Println("PreviousData[host].CPUSystem:",PreviousData[host].CPUSystem)
+				fmt.Println("CPUSystemPercentage:",CPUSystemPercentage)
+				fmt.Println("CPUUserPercentage:",CPUUserPercentage)
+				machinePoints = append(machinePoints, []interface{}{
+
+					instance_name[0].Timestamp,
+					host, //hostname
+					memoryUsage, //memory usage
+					nil,
+					CPUSystemPercentage, //cpu_cumulative_usage
+					nil,
+					CPUUserPercentage, //cpuUsageUser
+				})
+
+				PreviousData[host] = PreviousValue{
+					CPUSystem : cpuUsageSystem,
+					CPUUser : cpuUsageUser,
+					MemoryUsage : memoryUsage,
+				}
+
+			}
+
 		}
 
-		if !(strings.Contains(id, "docker")) || len(id) <8{
+		if !(strings.Contains(id, "docker")) || len(id) < 8 {
 			continue
 		}
 
@@ -292,20 +358,26 @@ func processData(host string, data []byte, instanceIdNameMapping map[string]map[
 		var memoryUsage = instance_name[0].Value
 
 		var instance_name2 = filterByName(instanceOnly, "cgroup.cpuacct.stat.user")
-		var cpuUsage = instance_name2[0].Value
+		var cpuUsageUser = instance_name2[0].Value
+
+		var instance_name3 = filterByName(instanceOnly, "cgroup.cpuacct.stat.system")
+		var cpuUsageSystem = instance_name3[0].Value
+
+		//"cgroup.cpuacct.stat.user",
+		//"cgroup.cpuacct.stat.system",
+		//"kernel.all.cpu.sys",
+		//"kernel.all.cpu.user"
+
 
 		statPoints = append(statPoints, []interface{}{
 			instance_name[0].Timestamp,
-			memoryUsage,                    //memory usage
-			5983276,                        //page faults
-			host,                       //hostname
-			taskName, //container_name
-			0,        //rxbyte
-			0,        //rxerror
-			0,        //txbyte
-			0,        //txerrors
-			cpuUsage, //cpu_cumulative_usage
-			63733760, //memory_working_set
+			memoryUsage, //memory usage
+			5983276,     //page faults
+			host,        //hostname
+			taskName,    //container_name
+			cpuUsageUser,    //cpu_cumulative_usage
+			63733760,    //memory_working_set
+			cpuUsageSystem,//cpuUsageSystem
 
 		})
 
@@ -313,13 +385,13 @@ func processData(host string, data []byte, instanceIdNameMapping map[string]map[
 
 	if statPoints != nil {
 		Write(statPoints, "stats")
-		fmt.Println("hostname:",host)
+		fmt.Println("hostname:", host)
 		fmt.Println("wrote to stats db")
 	}
 
 	if machinePoints != nil {
 		Write(machinePoints, "machine")
-		fmt.Println("hostname:",host)
+		fmt.Println("hostname:", host)
 		fmt.Println("wrote to machine db")
 	}
 }

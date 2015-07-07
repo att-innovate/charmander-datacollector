@@ -9,15 +9,12 @@ import (
 var Machine = []string{
 	"time",
 	"hostname",
-	"container_name",
 	"memory_usage",
 	"page_faults",
 	"cpu_cumulative_usage",
 	"memory_working_set",
-	"rx_bytes",
-	"rx_errors",
-	"tx_bytes",
-	"tx_errors"}
+	"cpu_usage_user",
+	}
 
 var Stats = []string{
 	"time",
@@ -25,18 +22,16 @@ var Stats = []string{
 	"page_faults",
 	"hostname",
 	"container_name",
-	"rx_bytes",
-	"rx_errors",
-	"tx_bytes",
-	"tx_errors",
 	"cpu_cumulative_usage",
-	"memory_working_set"}
+	"memory_working_set",
+	"cpu_usage_system",
+	}
 
 var (
 	argDbUsername = flag.String("sink_influxdb_username", "root", "InfluxDB username")
 	argDbPassword = flag.String("sink_influxdb_password", "root", "InfluxDB password")
 	argDbHost     = flag.String("sink_influxdb_host", "172.31.2.11:31410", "InfluxDB host:port")
-	argDbName     = flag.String("sink_influxdb_name", "test6", "Influxdb database name")
+	argDbName     = flag.String("sink_influxdb_name", "test2", "Influxdb database name")
 	argDbCreated = false
 )
 
