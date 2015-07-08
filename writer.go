@@ -11,7 +11,7 @@ var Machine = []string{
 	"hostname",
 	"memory_usage",
 	"page_faults",
-	"cpu_cumulative_usage",
+	"cpu_usage_system",
 	"memory_working_set",
 	"cpu_usage_user",
 	}
@@ -22,7 +22,7 @@ var Stats = []string{
 	"page_faults",
 	"hostname",
 	"container_name",
-	"cpu_cumulative_usage",
+	"cpu_usage_user",
 	"memory_working_set",
 	"cpu_usage_system",
 	}
