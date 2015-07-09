@@ -1,37 +1,52 @@
 package main
 
+type InstanceData struct {
+	Host string
+	Instance int64
+	MetricName string
+	Value string
+}
 
-import (
-"sync"
-)
+type InstanceStore []InstanceData
 
+func NewInstanceStore() *InstanceStore {
+	return &InstanceStore{}
+}
 
-func GetInstanceMapping(metricsName string, host string, context strub) PmidMap{
+func (instanceStore *InstanceStore) AddInstanceData(instanceData InstanceData) {
+	*instanceStore = append(*instanceStore, instanceData)
+}
 
-	var instanceMap = make(MetricName)
-	var metricNameMap = make(PmidMap)
+func (instanceStore InstanceStore) SearchByHost(host string) InstanceStore {
+	return instancefilterByHost(instanceStore, host)
+}
 
-	var metricNameArray = strings.Split(DefaultStats, ",")
+func (instanceStore InstanceStore) SearchByMetric(metric string) InstanceStore {
+	return instancefilterByMetric(instanceStore, metric)
+}
 
-	for _, value := range metricNameArray{
-		metricNameMap[value]=instanceMap
+func (instanceStore InstanceStore) SearchByInstance(instance int64) InstanceStore {
+	return instancefilterByInstance(instanceStore, instance)
+}
 
-		var secondCallParams = fmt.Sprint("/_indom?instance=", instanceNum, "&name=", unmarshalledData.Values[0].Name)
+func instancefilterByHost(instancedata InstanceStore, host string) InstanceStore {
+	return instanceFilter(instancedata, func(metric InstanceData) bool { return metric.Host == host })
+}
 
-		var secondCallData SecondCallDataMetric
+func instancefilterByMetric(instancedata InstanceStore, metricName string) InstanceStore {
+	return instanceFilter(instancedata, func(metric InstanceData) bool { return metric.MetricName == metricName })
+}
 
-		response, err := getContent(fmt.Sprint("http://", host, ":44323/pmapi/", context.Id, secondCallParams))
-		if err != nil {
-			fmt.Println("error5:", err)
+func instancefilterByInstance(instancedata InstanceStore, instanceId int64) InstanceStore {
+	return instanceFilter(instancedata, func(metric InstanceData) bool { return metric.Instance == instanceId })
+}
+
+func instanceFilter(instancestore InstanceStore, fn func(InstanceData) bool) InstanceStore {
+	var results InstanceStore
+	for _, value := range instancestore {
+		if fn(value) {
+			results = append(results, value)
 		}
-		err = json.Unmarshal(response, &secondCallData)
-		if err != nil {
-			fmt.Println("error6:", err)
-		}
-
 	}
-
-	//fmt.Println(metricNameMap)
-
-	return metricNameMap
+	return results
 }

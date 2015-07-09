@@ -1,15 +1,14 @@
 package main
-import "fmt"
+//import "fmt"
 
 func main() {
-	var z = GetInstanceMapping("test")
-	fmt.Println(z)
-	//GetHost()
-	//CollectData()
-}
 
-func CollectData(){
+	var contextStore = NewContext()
 
-	//move gethost inside this function
+	contextStore.UpdateContext()
+
+	GetInstanceMapping(contextStore)
+
+	Collector()
 
 }

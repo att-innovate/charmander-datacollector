@@ -11,6 +11,7 @@ import (
 )
 
 var PreviousValues = NewValueStore()
+var instanceStore = NewInstanceStore()
 
 const DefaultStats = "cgroup.cpuacct.stat.user,cgroup.cpuacct.stat.system,cgroup.memory.usage,network.interface.in.bytes,network.interface.out.bytes"
 
@@ -19,25 +20,18 @@ type Param []struct {
 	Name     string
 }
 
-type Context struct {
-	Id int `json:"context"`
-}
-
-type MetricName map[int]string
-type PmidMap map[string]MetricName
-
 //todo: rename object
 type Datametric struct {
 	Timestamp struct {
-		S  int64
-		Us int64
+		S  int64 `json:"s"`
+		Us int64 `json:"us"`
 	}
 	Values []struct {
-		Pmid      int64
-		Name      string
+		Pmid      int64 `json:"pmid"`
+		Name      string `json:"name"`
 		Instances []struct {
-			Instance int64
-			Value    int64
+			Instance int64 `json:"instance"`
+			Value    int64 `json:"value"`
 		}
 	}
 }
@@ -110,7 +104,44 @@ func meteredTask(host string, dockerId string) string {
 
 }
 
-func GetHost() {
+func GetInstanceMapping (context *ContextList) {
+	var hosts = GetCadvisorHosts()
+
+	var metricNameArray = strings.Split(DefaultStats, ",")
+
+	for _, host := range hosts {
+		for _, value := range metricNameArray {
+
+			var secondCallParams = fmt.Sprint("/_indom?&name=", value)
+
+			var secondCallData SecondCallDataMetric
+
+			response, err := getContent(fmt.Sprint("http://", host, ":44323/pmapi/", context.list[host], secondCallParams))
+			if err != nil {
+				fmt.Println("error5:", err)
+			}
+			err = json.Unmarshal(response, &secondCallData)
+			if err != nil {
+				fmt.Println("error6:", err)
+			}
+
+			for _, instance := range secondCallData.Instances {
+
+				var instanceData = InstanceData{
+					Host:host,
+					Instance:instance.Instance,
+					MetricName:value,
+					Value:instance.Name,
+				}
+
+				instanceStore.AddInstanceData(instanceData)
+			}
+		}
+	}
+
+}
+
+func Collector() {
 
 	var hosts = GetCadvisorHosts()
 	c1 := make(chan GenericData, 1)
@@ -141,7 +172,7 @@ func GetHost() {
 
 
 func collectData(host string) GenericData {
-
+/*
 	content, err := getContent(fmt.Sprint("http://", host, ":44323/pmapi/context?hostspec=localhost&polltimeout=600"))
 	if err != nil {
 		fmt.Println("error:", err)
@@ -212,7 +243,9 @@ func collectData(host string) GenericData {
 		host:      host,
 		//PreviousData:map[string]PreviousValue{},
 	}
-	return returnObj
+	return returnObj*/
+
+	return GenericData{}
 
 }
 

@@ -47,16 +47,3 @@ func (previousValue *PreviousValue) SearchByHost(host string) Metrics {
 	defer previousValue.RUnlock()
 	return previousValue.Machine[host]
 }
-
-/*
-func main(){
-	var test = NewValueStore()
-
-	var m = Metrics{CPUUser:123}
-	test.AddStatsMetrics("stress60",m)
-
-	//test.AddMachineMetrics("slave1",m)
-	//fmt.Println(test)
-	//fmt.Println(test.SearchByHost("slave1").CPUUser)
-}
-*/
