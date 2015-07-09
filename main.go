@@ -1,8 +1,10 @@
 package main
+import "fmt"
 
 func main() {
-
-	GetHost()
+	var z = GetInstanceMapping("test")
+	fmt.Println(z)
+	//GetHost()
 	//CollectData()
 }
 

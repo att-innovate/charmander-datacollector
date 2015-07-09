@@ -25,6 +25,8 @@ var Stats = []string{
 	"cpu_usage_user",
 	"memory_working_set",
 	"cpu_usage_system",
+	//"network_in_bytes",
+	//"network_out_bytes",
 	}
 
 var (

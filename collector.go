@@ -12,7 +12,7 @@ import (
 
 var PreviousValues = NewValueStore()
 
-const DefaultStats = "/_fetch?names=cgroup.cpuacct.stat.user,cgroup.cpuacct.stat.system,cgroup.memory.usage,network.interface.in.bytes,network.interface.out.bytes"
+const DefaultStats = "cgroup.cpuacct.stat.user,cgroup.cpuacct.stat.system,cgroup.memory.usage,network.interface.in.bytes,network.interface.out.bytes"
 
 type Param []struct {
 	Instance []int
@@ -23,11 +23,9 @@ type Context struct {
 	Id int `json:"context"`
 }
 
-type PmidMap struct {
-	Pmid struct {
-		container map[int]string
-	}
-}
+type MetricName map[int]string
+type PmidMap map[string]MetricName
+
 //todo: rename object
 type Datametric struct {
 	Timestamp struct {
@@ -128,17 +126,19 @@ func GetHost() {
 			}(host)
 
 		}
-		time.Sleep(time.Second * 10)
+		time.Sleep(time.Second * 3)
 		for i := 0; i < len(hosts); i++ {
 			res := <-c1
 
 			processData(res)
 			fmt.Println("GoRoutines:", runtime.NumGoroutine())
-			fmt.Println("NumCgoCall:", runtime.NumCgoCall())
+			fmt.Println("-------------------------------")
+			//fmt.Println("NumCgoCall:", runtime.NumCgoCall())
 		}
 
 	}
 }
+
 
 func collectData(host string) GenericData {
 
@@ -155,7 +155,7 @@ func collectData(host string) GenericData {
 
 	var unmarshalledData Datametric
 
-	response2, err := getContent(fmt.Sprint("http://", host, ":44323/pmapi/", context.Id, DefaultStats))
+	response2, err := getContent(fmt.Sprint("http://", host, ":44323/pmapi/", context.Id, "/_fetch?names=",DefaultStats))
 	if err != nil {
 		fmt.Println("error3:", err)
 	}
@@ -203,7 +203,7 @@ func collectData(host string) GenericData {
 		dataMap[unmarshalledData.Values[0].Name][b.Instance] = b.Name
 	}
 
-	dataFromGetData := getData(host, context.Id, DefaultStats)
+	dataFromGetData := getData(host, context.Id, fmt.Sprint("/_fetch?names=",DefaultStats))
 
 	var returnObj = GenericData{
 		data:      dataFromGetData,
@@ -259,12 +259,36 @@ func processData(gData GenericData) {
 		}
 	}
 
+
 	var statPoints [][]interface{}
 	var machinePoints [][]interface{}
 
 	for key := range instances {
-
+		//fmt.Println("metrics:",metrics)
 		var instanceOnly = filterByInstance(metrics, key)
+		fmt.Println("---------------------")
+		//fmt.Println("instanceOnly:",instanceOnly)
+
+
+		var instance_name4 = filterByName(instanceOnly, "network.interface.in.bytes")
+
+		var networkInBytes int64
+		if len(instance_name4) != 0{
+			networkInBytes = instance_name4[0].Value
+		}
+
+		fmt.Println("networkInBytes:",networkInBytes)
+
+		var instance_name5 = filterByName(instanceOnly, "network.interface.out.bytes")
+
+		var networkOutBytes int64
+		if len(instance_name5) != 0{
+			networkOutBytes = instance_name5[0].Value
+		}
+
+		fmt.Println("networkOutBytes:",networkOutBytes)
+
+
 		var instance_name = filterByName(instanceOnly, "cgroup.memory.usage")
 		if len(instance_name) == 0 {
 			continue
@@ -372,6 +396,9 @@ func processData(gData GenericData) {
 				CPUUserPercentage,   //cpu_cumulative_usage
 				63733760,            //memory_working_set
 				CPUSystemPercentage, //cpuUsageSystem
+				//networkInBytes,
+				//networkOutBytes,
+				//interfaceName
 
 			})
 
@@ -388,14 +415,14 @@ func processData(gData GenericData) {
 
 	if statPoints != nil {
 		Write(statPoints, "stats")
-		fmt.Println("hostname:", host)
-		fmt.Println("wrote to stats db")
+		//fmt.Println("hostname:", host)
+		//fmt.Println("wrote to stats db")
 	}
 
 	if machinePoints != nil {
 		Write(machinePoints, "machine")
-		fmt.Println("hostname:", host)
-		fmt.Println("wrote to machine db")
+		//fmt.Println("hostname:", host)
+		//fmt.Println("wrote to machine db")
 	}
 }
 
