@@ -5,16 +5,13 @@ import (
 	"fmt"
 	"io/ioutil"
 	"net/http"
-	"runtime"
+	"os"
 	"strings"
 	"time"
-	//"reflect"
 )
 
 var PreviousValues = NewValueStore()
 var instanceStore = NewInstanceStore()
-
-const DefaultStats = "cgroup.cpuacct.stat.user,cgroup.cpuacct.stat.system,cgroup.memory.usage,network.interface.in.bytes,network.interface.out.bytes,network.interface.out.drops,network.interface.in.drops"
 
 type Param []struct {
 	Instance []int
@@ -23,11 +20,11 @@ type Param []struct {
 
 type Datametric struct {
 	Timestamp struct {
-		S  int64 `json:"s"`
-		Us int64 `json:"us"`
+		Time int64 `json:"s"`
+		Us   int64 `json:"us"`
 	}
 	Values []struct {
-		Pmid      int64 `json:"pmid"`
+		Pmid      int64  `json:"pmid"`
 		Name      string `json:"name"`
 		Instances []struct {
 			Instance int64 `json:"instance"`
@@ -104,85 +101,69 @@ func meteredTask(host string, dockerId string) string {
 
 }
 
-func GetInstanceMapping (context *ContextList) {
+func GetInstanceMapping(context *ContextList) {
+	instanceStore = NewInstanceStore()
+
 	var hosts = GetCadvisorHosts()
 
-	var metricNameArray = strings.Split(DefaultStats, ",")
+	if len(hosts) == 0 {
+		fmt.Println("Error: could not talk to redis to obtain host")
+		os.Exit(1)
+	}
 
-	for _, host := range hosts {
-		for _, value := range metricNameArray {
+	go func(context *ContextList) {
+		for {
 
-			var secondCallParams = fmt.Sprint("/_indom?&name=", value)
+			fmt.Println("-----------------")
+			fmt.Println("grabbing new data")
+			fmt.Println("-----------------")
+			hosts = GetCadvisorHosts()
+			for _, host := range hosts {
+				for _, value := range pcpMetrics {
 
-			var secondCallData SecondCallDataMetric
+					var secondCallParams = fmt.Sprint("/_indom?&name=", value)
 
-			response, err := getContent(fmt.Sprint("http://", host, ":44323/pmapi/", context.list[host], secondCallParams))
-			if err != nil {
-				fmt.Println("error5:", err)
-			}
-			err = json.Unmarshal(response, &secondCallData)
-			if err != nil {
-				fmt.Println("error6:", err)
-			}
+					var secondCallData SecondCallDataMetric
 
-			for _, instance := range secondCallData.Instances {
+					response, err := getContent(fmt.Sprint("http://", host, ":44323/pmapi/", context.list[host], secondCallParams))
+					if err != nil {
+						fmt.Println("error5:", err)
+					}
+					err = json.Unmarshal(response, &secondCallData)
+					if err != nil {
+						fmt.Println("error6:", err)
+					}
 
-				var instanceData = InstanceData{
-					Host:host,
-					Instance:instance.Instance,
-					MetricName:value,
-					Value:instance.Name,
+					for _, instance := range secondCallData.Instances {
+
+						var instanceData = InstanceData{
+							Host:       host,
+							Instance:   instance.Instance,
+							MetricName: value,
+							Value:      instance.Name,
+						}
+
+						instanceStore.AddInstanceData(instanceData)
+					}
 				}
-
-				instanceStore.AddInstanceData(instanceData)
 			}
+			time.Sleep(time.Second * 30)
 		}
-	}
+	}(context)
 
-}
-
-func Collector(contextStore *ContextList) {
-
-	var hosts = GetCadvisorHosts()
-	c1 := make(chan GenericData, 1)
-
-	for {
-
-		for _, host := range hosts {
-
-			go func(host string) {
-
-				c1 <- collectData(host,contextStore)
-
-			}(host)
-
-		}
-
-		time.Sleep(time.Second * 5)
-
-		for i := 0; i < len(hosts); i++ {
-
-			res := <-c1
-
-			processData(res)
-			fmt.Println("GoRoutines:", runtime.NumGoroutine())
-
-
-		}
-
-	}
 }
 
 func collectData(host string, contextStore *ContextList) GenericData {
 
+	var combinedMetircString = strings.Join(pcpMetrics, ",")
 	var unmarshalledData Datametric
 
-	response2, err := getContent(fmt.Sprint("http://", host, ":44323/pmapi/", contextStore.list[host], "/_fetch?names=",DefaultStats))
+	response, err := getContent(fmt.Sprint("http://", host, ":44323/pmapi/", contextStore.list[host], "/_fetch?names=", combinedMetircString))
 	if err != nil {
 		fmt.Println("error3:", err)
 	}
 
-	err = json.Unmarshal(response2, &unmarshalledData)
+	err = json.Unmarshal(response, &unmarshalledData)
 	if err != nil {
 		fmt.Println("error4:", err)
 	}
@@ -212,7 +193,7 @@ func collectData(host string, contextStore *ContextList) GenericData {
 
 	var secondCallData SecondCallDataMetric
 
-	response, err := getContent(fmt.Sprint("http://", host, ":44323/pmapi/", contextStore.list[host], secondCallParams))
+	response, err = getContent(fmt.Sprint("http://", host, ":44323/pmapi/", contextStore.list[host], secondCallParams))
 	if err != nil {
 		fmt.Println("error5:", err)
 	}
@@ -225,7 +206,7 @@ func collectData(host string, contextStore *ContextList) GenericData {
 		dataMap[unmarshalledData.Values[0].Name][b.Instance] = b.Name
 	}
 
-	dataFromGetData := getData(host, contextStore.list[host], fmt.Sprint("/_fetch?names=",DefaultStats))
+	dataFromGetData := getData(host, contextStore.list[host], fmt.Sprint("/_fetch?names=", combinedMetircString))
 
 	var returnObj = GenericData{
 		data:      dataFromGetData,
@@ -234,7 +215,6 @@ func collectData(host string, contextStore *ContextList) GenericData {
 		host:      host,
 	}
 	return returnObj
-
 
 }
 
@@ -270,7 +250,7 @@ func processData(gData GenericData) {
 	for a, b := range unmarshalledData2.Values {
 		for _, c := range unmarshalledData2.Values[a].Instances {
 			var tempMetrics = MetricModel{
-				Timestamp:  unmarshalledData2.Timestamp.S,
+				Timestamp:  unmarshalledData2.Timestamp.Time,
 				Metricname: b.Name,
 				Instanceid: c.Instance,
 				Value:      c.Value,
@@ -281,7 +261,6 @@ func processData(gData GenericData) {
 		}
 	}
 
-
 	var statPoints [][]interface{}
 	var machinePoints [][]interface{}
 	var networkPoints [][]interface{}
@@ -290,80 +269,77 @@ func processData(gData GenericData) {
 		//fmt.Println("metrics:",metrics)
 		var instanceOnly = filterByInstance(metrics, key)
 
-
 		var instance_name = filterByName(instanceOnly, "cgroup.memory.usage")
 		if len(instance_name) == 0 {
 			continue
 		}
 
-		var instancestore1 = instanceStore.SearchByHost(host).SearchByMetric("network.interface.in.bytes").SearchByInstance(key)
+		var instancestoreData = instanceStore.SearchByHost(host).SearchByMetric("network.interface.in.bytes").SearchByInstance(key)
 		var interfaceName = ""
 
-		if len(instancestore1) != 0 {
-			interfaceName = instancestore1[0].Value
+		if len(instancestoreData) != 0 {
+			interfaceName = instancestoreData[0].Value
 
 			var instance_name4 = filterByName(instanceOnly, "network.interface.in.bytes")
 			var networkInBytes int64
-			if len(instance_name4) != 0{
+
+			if len(instance_name4) != 0 {
 				networkInBytes = instance_name4[0].Value
 			}
 
 			var instance_name5 = filterByName(instanceOnly, "network.interface.out.bytes")
 			var networkOutBytes int64
-			if len(instance_name5) != 0{
+			if len(instance_name5) != 0 {
 				networkOutBytes = instance_name5[0].Value
 			}
 
 			var instance_name6 = filterByName(instanceOnly, "network.interface.out.drops")
 			var networkInDrops int64
-			if len(instance_name6) != 0{
+			if len(instance_name6) != 0 {
 				networkInDrops = instance_name6[0].Value
 			}
 
 			var instance_name7 = filterByName(instanceOnly, "network.interface.in.drops")
 			var networkOutDrops int64
-			if len(instance_name7) != 0{
+			if len(instance_name7) != 0 {
 				networkOutDrops = instance_name7[0].Value
 			}
 
-			if PreviousValues.SearchByInterfaceHost(host,interfaceName).NetworkInBytes == 0 {
+			if PreviousValues.SearchByInterfaceHost(host, interfaceName).NetworkInBytes == 0 {
 
 				var metrics = Metrics{
-					NetworkInBytes:networkInBytes,
-					NetworkOutBytes:networkOutBytes,
+					NetworkInBytes:  networkInBytes,
+					NetworkOutBytes: networkOutBytes,
 				}
 
 				PreviousValues.AddNetworkMetrics(host, interfaceName, metrics)
 
 			} else {
 
-				var networkInBytesPoints = instance_name4[0].Value - PreviousValues.SearchByInterfaceHost(host,interfaceName).NetworkInBytes
+				var networkInBytesPoints = instance_name4[0].Value - PreviousValues.SearchByInterfaceHost(host, interfaceName).NetworkInBytes
 
-				var networkOutBytesPoints = instance_name5[0].Value - PreviousValues.SearchByInterfaceHost(host,interfaceName).NetworkOutBytes
+				var networkOutBytesPoints = instance_name5[0].Value - PreviousValues.SearchByInterfaceHost(host, interfaceName).NetworkOutBytes
 
 				networkPoints = append(networkPoints, []interface{}{
 
 					instance_name[0].Timestamp,
-					host,        //hostname
+					host, //hostname
 					networkInBytesPoints,
 					networkOutBytesPoints,
 					interfaceName,
 					networkInDrops,
 					networkOutDrops,
-
 				})
 
 				var metrics = Metrics{
-					NetworkInBytes:networkInBytes,
-					NetworkOutBytes:networkOutBytes,
+					NetworkInBytes:  networkInBytes,
+					NetworkOutBytes: networkOutBytes,
 				}
 				PreviousValues.AddNetworkMetrics(host, interfaceName, metrics)
 
 			}
 
 		}
-
-
 
 		if key == 0 {
 			var instance_name = filterByName(instanceOnly, "cgroup.cpuacct.stat.system")
@@ -381,12 +357,11 @@ func processData(gData GenericData) {
 			if PreviousValues.SearchByHost(host).CPUSystem == 0 {
 
 				var metrics = Metrics{
-					CPUSystem: cpuUsageSystem,
-					CPUUser : cpuUsageUser,
-					MemoryUsage : memoryUsage,
+					CPUSystem:   cpuUsageSystem,
+					CPUUser:     cpuUsageUser,
+					MemoryUsage: memoryUsage,
 				}
 				PreviousValues.AddMachineMetrics(host, metrics)
-
 
 			} else {
 
@@ -395,7 +370,6 @@ func processData(gData GenericData) {
 
 				//"kernel.all.cpu.sys",
 				//"kernel.all.cpu.user"
-
 
 				machinePoints = append(machinePoints, []interface{}{
 
@@ -413,9 +387,9 @@ func processData(gData GenericData) {
 				})
 
 				var metrics = Metrics{
-					CPUSystem: cpuUsageSystem,
-					CPUUser : cpuUsageUser,
-					MemoryUsage : memoryUsage,
+					CPUSystem:   cpuUsageSystem,
+					CPUUser:     cpuUsageUser,
+					MemoryUsage: memoryUsage,
 				}
 				PreviousValues.AddMachineMetrics(host, metrics)
 
@@ -451,9 +425,9 @@ func processData(gData GenericData) {
 		if PreviousValues.SearchById(taskName).CPUSystem == 0 {
 
 			var metrics = Metrics{
-				CPUSystem: cpuUsageSystem,
-				CPUUser : cpuUsageUser,
-				MemoryUsage : memoryUsage,
+				CPUSystem:   cpuUsageSystem,
+				CPUUser:     cpuUsageUser,
+				MemoryUsage: memoryUsage,
 			}
 			PreviousValues.AddStatsMetrics(taskName, metrics)
 
@@ -461,8 +435,6 @@ func processData(gData GenericData) {
 
 			var CPUSystemPercentage = float64(cpuUsageSystem-PreviousValues.SearchById(taskName).CPUSystem) / float64(10.000)
 			var CPUUserPercentage = float64(cpuUsageUser-PreviousValues.SearchById(taskName).CPUUser) / float64(10.000)
-
-
 
 			statPoints = append(statPoints, []interface{}{
 				instance_name[0].Timestamp,
@@ -480,9 +452,9 @@ func processData(gData GenericData) {
 			})
 
 			var metrics = Metrics{
-				CPUSystem: cpuUsageSystem,
-				CPUUser : cpuUsageUser,
-				MemoryUsage : memoryUsage,
+				CPUSystem:   cpuUsageSystem,
+				CPUUser:     cpuUsageUser,
+				MemoryUsage: memoryUsage,
 			}
 			PreviousValues.AddStatsMetrics(taskName, metrics)
 
