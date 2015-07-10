@@ -25,9 +25,18 @@ var Stats = []string{
 	"cpu_usage_user",
 	"memory_working_set",
 	"cpu_usage_system",
-	//"network_in_bytes",
-	//"network_out_bytes",
 	}
+
+var Network = []string{
+	"time",
+	"hostname",
+	"network_in_bytes",
+	"network_out_bytes",
+	"interface_name",
+	"network_in_drops",
+	"network_out_drops",
+}
+
 
 var (
 	argDbUsername = flag.String("sink_influxdb_username", "root", "InfluxDB username")
@@ -68,7 +77,7 @@ func Write(data [][]interface{}, dataType string) {
 		}
 
 		if err := c.WriteSeriesWithTimePrecision([]*client.Series{series}, client.Second); err != nil {
-			fmt.Println("failed to write stats to influxDb - %s", err)
+			fmt.Println("failed to write machine to influxDb - %s", err)
 		}
 	}
 
@@ -81,6 +90,18 @@ func Write(data [][]interface{}, dataType string) {
 
 		if err := c.WriteSeriesWithTimePrecision([]*client.Series{series}, client.Second); err != nil {
 			fmt.Println("failed to write stats to influxDb - %s", err)
+		}
+	}
+
+	if dataType == "network" {
+		series := &client.Series{
+			Name:    "network",
+			Columns: Network,
+			Points:  data,
+		}
+
+		if err := c.WriteSeriesWithTimePrecision([]*client.Series{series}, client.Second); err != nil {
+			fmt.Println("failed to write network to influxDb - %s", err)
 		}
 	}
 

@@ -9,6 +9,6 @@ func main() {
 
 	GetInstanceMapping(contextStore)
 
-	Collector()
+	Collector(contextStore)
 
 }
