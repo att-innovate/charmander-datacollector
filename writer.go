@@ -10,20 +10,16 @@ var Machine = []string{
 	"time",
 	"hostname",
 	"memory_usage",
-	"page_faults",
 	"cpu_usage_system",
-	"memory_working_set",
 	"cpu_usage_user",
 	}
 
 var Stats = []string{
 	"time",
 	"memory_usage",
-	"page_faults",
 	"hostname",
 	"container_name",
 	"cpu_usage_user",
-	"memory_working_set",
 	"cpu_usage_system",
 	}
 
@@ -36,7 +32,6 @@ var Network = []string{
 	"network_in_drops",
 	"network_out_drops",
 }
-
 
 var (
 	argDbUsername = flag.String("sink_influxdb_username", "root", "InfluxDB username")
@@ -73,7 +68,6 @@ func Write(data [][]interface{}, dataType string) {
 			Name:    "machine",
 			Columns: Machine,
 			Points:  data,
-
 		}
 
 		if err := c.WriteSeriesWithTimePrecision([]*client.Series{series}, client.Second); err != nil {
@@ -104,5 +98,4 @@ func Write(data [][]interface{}, dataType string) {
 			fmt.Println("failed to write network to influxDb - %s", err)
 		}
 	}
-
 }

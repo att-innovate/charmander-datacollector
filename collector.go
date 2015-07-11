@@ -33,11 +33,11 @@ type Datametric struct {
 	}
 }
 
-type SecondCallDataMetric struct {
-	Indom     int64
+type MetricsJsonStructure struct {
+	Indom     int64 `json:"indom"`
 	Instances []struct {
-		Instance int64
-		Name     string
+		Instance int64 `json:"instance"`
+		Name     string `json:"name"`
 	}
 }
 
@@ -80,8 +80,8 @@ func getContent(url string) ([]byte, error) {
 
 func meteredTask(host string, dockerId string) string {
 	meteredTasks := make(map[string]string)
-	var tempStr = fmt.Sprint("http://", host, ":31300/getid/", dockerId)
-	content, err := getContent(tempStr)
+	var requestURL = fmt.Sprint("http://", host, ":31300/getid/", dockerId)
+	content, err := getContent(requestURL)
 	taskName := strings.TrimSpace(string(content[:]))
 	if err != nil {
 		fmt.Println("error metered:", err)
@@ -114,27 +114,24 @@ func GetInstanceMapping(context *ContextList) {
 	go func(context *ContextList) {
 		for {
 
-			fmt.Println("-----------------")
-			fmt.Println("grabbing new data")
-			fmt.Println("-----------------")
 			hosts = GetCadvisorHosts()
 			for _, host := range hosts {
 				for _, value := range pcpMetrics {
 
-					var secondCallParams = fmt.Sprint("/_indom?&name=", value)
+					var requestMetricNames = fmt.Sprint("/_indom?&name=", value)
 
-					var secondCallData SecondCallDataMetric
+					var MetricsData MetricsJsonStructure
 
-					response, err := getContent(fmt.Sprint("http://", host, ":44323/pmapi/", context.list[host], secondCallParams))
+					response, err := getContent(fmt.Sprint("http://", host, ":44323/pmapi/", context.list[host], requestMetricNames))
 					if err != nil {
 						fmt.Println("error5:", err)
 					}
-					err = json.Unmarshal(response, &secondCallData)
+					err = json.Unmarshal(response, &MetricsData)
 					if err != nil {
 						fmt.Println("error6:", err)
 					}
 
-					for _, instance := range secondCallData.Instances {
+					for _, instance := range MetricsData.Instances {
 
 						var instanceData = InstanceData{
 							Host:       host,
@@ -181,28 +178,20 @@ func collectData(host string, contextStore *ContextList) GenericData {
 		}
 	}
 
-	var s = ""
-	for a := range dataMap[unmarshalledData.Values[0].Name] {
-		s = fmt.Sprint(s, a, ",")
-	}
-	s = strings.TrimSuffix(s, ",")
+	var requestMetricNames = fmt.Sprint("/_indom?&name=", unmarshalledData.Values[0].Name)
 
-	var instanceNum = s
+	var MetricsData MetricsJsonStructure
 
-	var secondCallParams = fmt.Sprint("/_indom?instance=", instanceNum, "&name=", unmarshalledData.Values[0].Name)
-
-	var secondCallData SecondCallDataMetric
-
-	response, err = getContent(fmt.Sprint("http://", host, ":44323/pmapi/", contextStore.list[host], secondCallParams))
+	response, err = getContent(fmt.Sprint("http://", host, ":44323/pmapi/", contextStore.list[host], requestMetricNames))
 	if err != nil {
 		fmt.Println("error5:", err)
 	}
-	err = json.Unmarshal(response, &secondCallData)
+	err = json.Unmarshal(response, &MetricsData)
 	if err != nil {
 		fmt.Println("error6:", err)
 	}
-	//fmt.Println(secondCallData)
-	for _, b := range secondCallData.Instances {
+
+	for _, b := range MetricsData.Instances {
 		dataMap[unmarshalledData.Values[0].Name][b.Instance] = b.Name
 	}
 
@@ -230,7 +219,6 @@ func getData(host string, context int, suffix string) []byte {
 	}
 }
 
-//func processData(host string, data []byte, instanceIdNameMapping map[string]map[int64]string) {
 func processData(gData GenericData) {
 	var host = gData.host
 	var data = gData.data
@@ -336,9 +324,7 @@ func processData(gData GenericData) {
 					NetworkOutBytes: networkOutBytes,
 				}
 				PreviousValues.AddNetworkMetrics(host, interfaceName, metrics)
-
 			}
-
 		}
 
 		if key == 0 {
@@ -350,9 +336,6 @@ func processData(gData GenericData) {
 
 			var instance_name3 = filterByName(instanceOnly, "cgroup.cpuacct.stat.user")
 			var cpuUsageUser = instance_name3[0].Value
-
-			fmt.Println("CPUSystem:", cpuUsageSystem)
-			fmt.Println("CPUUser:", cpuUsageUser)
 
 			if PreviousValues.SearchByHost(host).CPUSystem == 0 {
 
@@ -368,22 +351,12 @@ func processData(gData GenericData) {
 				var CPUSystemPercentage = float64(cpuUsageSystem-PreviousValues.SearchByHost(host).CPUSystem) / float64(10.000)
 				var CPUUserPercentage = float64(cpuUsageUser-PreviousValues.SearchByHost(host).CPUUser) / float64(10.000)
 
-				//"kernel.all.cpu.sys",
-				//"kernel.all.cpu.user"
-
 				machinePoints = append(machinePoints, []interface{}{
-
 					instance_name[0].Timestamp,
-					host,        //hostname
-					memoryUsage, //memory usage
-					nil,
-					CPUSystemPercentage, //cpu_cumulative_usage
-					nil,
-					CPUUserPercentage, //cpuUsageUser
-					//networkInBytes,
-					//networkOutBytes,
-					//interfaceName,
-
+					host,
+					memoryUsage,
+					CPUSystemPercentage,
+					CPUUserPercentage,
 				})
 
 				var metrics = Metrics{
@@ -438,17 +411,11 @@ func processData(gData GenericData) {
 
 			statPoints = append(statPoints, []interface{}{
 				instance_name[0].Timestamp,
-				memoryUsage,         //memory usage
-				5983276,             //page faults
-				host,                //hostname
-				taskName,            //container_name
-				CPUUserPercentage,   //cpu_cumulative_usage
-				63733760,            //memory_working_set
-				CPUSystemPercentage, //cpuUsageSystem
-				//networkInBytes,
-				//networkOutBytes,
-				//interfaceName,
-
+				memoryUsage,
+				host,
+				taskName,
+				CPUUserPercentage,
+				CPUSystemPercentage,
 			})
 
 			var metrics = Metrics{
@@ -464,20 +431,14 @@ func processData(gData GenericData) {
 
 	if statPoints != nil {
 		Write(statPoints, "stats")
-		//fmt.Println("hostname:", host)
-		//fmt.Println("wrote to stats db")
 	}
 
 	if machinePoints != nil {
 		Write(machinePoints, "machine")
-		//fmt.Println("hostname:", host)
-		//fmt.Println("wrote to machine db")
 	}
 
 	if networkPoints != nil {
 		Write(networkPoints, "network")
-		//fmt.Println("hostname:", host)
-		//fmt.Println("wrote to network db")
 	}
 }
 
@@ -489,12 +450,12 @@ func filterByInstance(metrics []MetricModel, instanceId int64) []MetricModel {
 	return filter(metrics, func(metric MetricModel) bool { return metric.Instanceid == instanceId })
 }
 
-func filter(s []MetricModel, fn func(MetricModel) bool) []MetricModel {
-	var r []MetricModel
-	for _, v := range s {
-		if fn(v) {
-			r = append(r, v)
+func filter(metrics []MetricModel, fn func(MetricModel) bool) []MetricModel {
+	var results []MetricModel
+	for _, value := range metrics {
+		if fn(value) {
+			results = append(results, value)
 		}
 	}
-	return r
+	return results
 }
