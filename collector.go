@@ -153,14 +153,14 @@ func GetInstanceMapping(context *ContextList) {
 func collectData(host string, contextStore *ContextList) GenericData {
 
 	var combinedMetircString = strings.Join(pcpMetrics, ",")
-	var unmarshalledData Datametric
+	var pcpMetric Datametric
 
 	response, err := getContent(fmt.Sprint("http://", host, ":44323/pmapi/", contextStore.list[host], "/_fetch?names=", combinedMetircString))
 	if err != nil {
 		fmt.Println("error3:", err)
 	}
 
-	err = json.Unmarshal(response, &unmarshalledData)
+	err = json.Unmarshal(response, &pcpMetric)
 	if err != nil {
 		fmt.Println("error4:", err)
 	}
@@ -168,17 +168,15 @@ func collectData(host string, contextStore *ContextList) GenericData {
 	dataMap := make(map[string]map[int64]string)
 	instanceIdMap := make(map[int64]string)
 
-	for a, _ := range unmarshalledData.Values {
-		dataMap[unmarshalledData.Values[a].Name] = instanceIdMap
+	for instanceId, _ := range pcpMetric.Values {
+		dataMap[pcpMetric.Values[instanceId].Name] = instanceIdMap
 
-		for b, _ := range unmarshalledData.Values[a].Instances {
-
-			dataMap[unmarshalledData.Values[a].Name][unmarshalledData.Values[a].Instances[b].Instance] = ""
-
+		for instance, _ := range pcpMetric.Values[instanceId].Instances {
+			dataMap[pcpMetric.Values[instanceId].Name][pcpMetric.Values[instanceId].Instances[instance].Instance] = ""
 		}
 	}
 
-	var requestMetricNames = fmt.Sprint("/_indom?&name=", unmarshalledData.Values[0].Name)
+	var requestMetricNames = fmt.Sprint("/_indom?&name=", pcpMetric.Values[0].Name)
 
 	var MetricsData MetricsJsonStructure
 
@@ -191,8 +189,8 @@ func collectData(host string, contextStore *ContextList) GenericData {
 		fmt.Println("error6:", err)
 	}
 
-	for _, b := range MetricsData.Instances {
-		dataMap[unmarshalledData.Values[0].Name][b.Instance] = b.Name
+	for _, instanceData := range MetricsData.Instances {
+		dataMap[pcpMetric.Values[0].Name][instanceData.Instance] = instanceData.Name
 	}
 
 	dataFromGetData := getData(host, contextStore.list[host], fmt.Sprint("/_fetch?names=", combinedMetircString))
@@ -254,11 +252,11 @@ func processData(gData GenericData) {
 	var networkPoints [][]interface{}
 
 	for key := range instances {
-		//fmt.Println("metrics:",metrics)
+
 		var instanceOnly = filterByInstance(metrics, key)
 
-		var instance_name = filterByName(instanceOnly, "cgroup.memory.usage")
-		if len(instance_name) == 0 {
+		var filteredData = filterByName(instanceOnly, "cgroup.memory.usage")
+		if len(filteredData) == 0 {
 			continue
 		}
 
@@ -268,29 +266,29 @@ func processData(gData GenericData) {
 		if len(instancestoreData) != 0 {
 			interfaceName = instancestoreData[0].Value
 
-			var instance_name4 = filterByName(instanceOnly, "network.interface.in.bytes")
+			var filteredData4 = filterByName(instanceOnly, "network.interface.in.bytes")
 			var networkInBytes int64
 
-			if len(instance_name4) != 0 {
-				networkInBytes = instance_name4[0].Value
+			if len(filteredData4) != 0 {
+				networkInBytes = filteredData4[0].Value
 			}
 
-			var instance_name5 = filterByName(instanceOnly, "network.interface.out.bytes")
+			var filteredData5 = filterByName(instanceOnly, "network.interface.out.bytes")
 			var networkOutBytes int64
-			if len(instance_name5) != 0 {
-				networkOutBytes = instance_name5[0].Value
+			if len(filteredData5) != 0 {
+				networkOutBytes = filteredData5[0].Value
 			}
 
-			var instance_name6 = filterByName(instanceOnly, "network.interface.out.drops")
+			var filteredData6 = filterByName(instanceOnly, "network.interface.out.drops")
 			var networkInDrops int64
-			if len(instance_name6) != 0 {
-				networkInDrops = instance_name6[0].Value
+			if len(filteredData6) != 0 {
+				networkInDrops = filteredData6[0].Value
 			}
 
-			var instance_name7 = filterByName(instanceOnly, "network.interface.in.drops")
+			var filteredData7 = filterByName(instanceOnly, "network.interface.in.drops")
 			var networkOutDrops int64
-			if len(instance_name7) != 0 {
-				networkOutDrops = instance_name7[0].Value
+			if len(filteredData7) != 0 {
+				networkOutDrops = filteredData7[0].Value
 			}
 
 			if PreviousValues.SearchByInterfaceHost(host, interfaceName).NetworkInBytes == 0 {
@@ -304,14 +302,14 @@ func processData(gData GenericData) {
 
 			} else {
 
-				var networkInBytesPoints = instance_name4[0].Value - PreviousValues.SearchByInterfaceHost(host, interfaceName).NetworkInBytes
+				var networkInBytesPoints = filteredData4[0].Value - PreviousValues.SearchByInterfaceHost(host, interfaceName).NetworkInBytes
 
-				var networkOutBytesPoints = instance_name5[0].Value - PreviousValues.SearchByInterfaceHost(host, interfaceName).NetworkOutBytes
+				var networkOutBytesPoints = filteredData5[0].Value - PreviousValues.SearchByInterfaceHost(host, interfaceName).NetworkOutBytes
 
 				networkPoints = append(networkPoints, []interface{}{
 
-					instance_name[0].Timestamp,
-					host, //hostname
+					filteredData[0].Timestamp,
+					host,
 					networkInBytesPoints,
 					networkOutBytesPoints,
 					interfaceName,
@@ -328,14 +326,14 @@ func processData(gData GenericData) {
 		}
 
 		if key == 0 {
-			var instance_name = filterByName(instanceOnly, "cgroup.cpuacct.stat.system")
-			var cpuUsageSystem = instance_name[0].Value
+			var filteredData = filterByName(instanceOnly, "cgroup.cpuacct.stat.system")
+			var cpuUsageSystem = filteredData[0].Value
 
-			var instance_name2 = filterByName(instanceOnly, "cgroup.memory.usage")
-			var memoryUsage = instance_name2[0].Value
+			var filteredData2 = filterByName(instanceOnly, "cgroup.memory.usage")
+			var memoryUsage = filteredData2[0].Value
 
-			var instance_name3 = filterByName(instanceOnly, "cgroup.cpuacct.stat.user")
-			var cpuUsageUser = instance_name3[0].Value
+			var filteredData3 = filterByName(instanceOnly, "cgroup.cpuacct.stat.user")
+			var cpuUsageUser = filteredData3[0].Value
 
 			if PreviousValues.SearchByHost(host).CPUSystem == 0 {
 
@@ -352,7 +350,7 @@ func processData(gData GenericData) {
 				var CPUUserPercentage = float64(cpuUsageUser-PreviousValues.SearchByHost(host).CPUUser) / float64(10.000)
 
 				machinePoints = append(machinePoints, []interface{}{
-					instance_name[0].Timestamp,
+					filteredData[0].Timestamp,
 					host,
 					memoryUsage,
 					CPUSystemPercentage,
@@ -387,13 +385,13 @@ func processData(gData GenericData) {
 			continue
 		}
 
-		var memoryUsage = instance_name[0].Value
+		var memoryUsage = filteredData[0].Value
 
-		var instance_name2 = filterByName(instanceOnly, "cgroup.cpuacct.stat.user")
-		var cpuUsageUser = instance_name2[0].Value
+		var filteredData2 = filterByName(instanceOnly, "cgroup.cpuacct.stat.user")
+		var cpuUsageUser = filteredData2[0].Value
 
-		var instance_name3 = filterByName(instanceOnly, "cgroup.cpuacct.stat.system")
-		var cpuUsageSystem = instance_name3[0].Value
+		var filteredData3 = filterByName(instanceOnly, "cgroup.cpuacct.stat.system")
+		var cpuUsageSystem = filteredData3[0].Value
 
 		if PreviousValues.SearchById(taskName).CPUSystem == 0 {
 
@@ -410,7 +408,7 @@ func processData(gData GenericData) {
 			var CPUUserPercentage = float64(cpuUsageUser-PreviousValues.SearchById(taskName).CPUUser) / float64(10.000)
 
 			statPoints = append(statPoints, []interface{}{
-				instance_name[0].Timestamp,
+				filteredData[0].Timestamp,
 				memoryUsage,
 				host,
 				taskName,

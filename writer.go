@@ -63,39 +63,28 @@ func Write(data [][]interface{}, dataType string) {
 		panic(err)
 	}
 
-	if dataType == "machine" {
-		series := &client.Series{
-			Name:    "machine",
-			Columns: Machine,
-			Points:  data,
-		}
+	var column []string
 
-		if err := c.WriteSeriesWithTimePrecision([]*client.Series{series}, client.Second); err != nil {
-			fmt.Println("failed to write machine to influxDb - %s", err)
-		}
+	switch dataType {
+	case "machine":
+		column = Machine
+	case "stats":
+		column = Stats
+	case "network":
+		column = Network
+	default:
+		fmt.Println("Error: unrecognized database")
+		return
 	}
 
-	if dataType == "stats" {
-		series := &client.Series{
-			Name:    "stats",
-			Columns: Stats,
-			Points:  data,
-		}
-
-		if err := c.WriteSeriesWithTimePrecision([]*client.Series{series}, client.Second); err != nil {
-			fmt.Println("failed to write stats to influxDb - %s", err)
-		}
+	series := &client.Series{
+		Name:    dataType,
+		Columns: column,
+		Points:  data,
 	}
 
-	if dataType == "network" {
-		series := &client.Series{
-			Name:    "network",
-			Columns: Network,
-			Points:  data,
-		}
-
-		if err := c.WriteSeriesWithTimePrecision([]*client.Series{series}, client.Second); err != nil {
-			fmt.Println("failed to write network to influxDb - %s", err)
-		}
+	if err := c.WriteSeriesWithTimePrecision([]*client.Series{series}, client.Second); err != nil {
+		fmt.Println("failed to write ",dataType," to influxDb - %s", err)
 	}
+
 }

@@ -45,7 +45,7 @@ func doWork(contextStore *ContextList) {
 
 		}
 
-		time.Sleep(time.Second * 2)
+		time.Sleep(time.Second * 5)
 
 		for i := 0; i < len(hosts); i++ {
 
