@@ -4,6 +4,7 @@ import (
 	"flag"
 	"fmt"
 	"github.com/influxdb/influxdb/client"
+	"strings"
 )
 
 var Machine = []string{
@@ -34,10 +35,10 @@ var Network = []string{
 }
 
 var (
-	argDbUsername = flag.String("sink_influxdb_username", "root", "InfluxDB username")
-	argDbPassword = flag.String("sink_influxdb_password", "root", "InfluxDB password")
-	argDbHost     = flag.String("sink_influxdb_host", "172.31.2.11:31410", "InfluxDB host:port")
-	argDbName     = flag.String("sink_influxdb_name", "test2", "Influxdb database name")
+	argDbUsername = flag.String("influxdb_username", "root", "InfluxDB username")
+	argDbPassword = flag.String("influxdb_password", "root", "InfluxDB password")
+	argDbHost     = flag.String("influxdb_host", "172.31.2.11:31410", "InfluxDB host:port")
+	argDbName     = flag.String("influxdb_name", "test2", "Influxdb database name")
 	argDbCreated = false
 )
 
@@ -53,12 +54,11 @@ func Write(data [][]interface{}, dataType string) {
 	if (argDbCreated == false) {
 		argDbCreated = true
 		if err := c.CreateDatabase(*argDbName); err != nil {
-			fmt.Println("Database creating error - %s", err)
+			fmt.Println("Database creation error - %s", err)
 		}
 	}
 
 	c.DisableCompression()
-
 	if err != nil {
 		panic(err)
 	}
@@ -84,7 +84,9 @@ func Write(data [][]interface{}, dataType string) {
 	}
 
 	if err := c.WriteSeriesWithTimePrecision([]*client.Series{series}, client.Second); err != nil {
-		fmt.Println("failed to write ",dataType," to influxDb - %s", err)
+		fmt.Println("Failed to write",dataType,"to influxDb.", err)
+		if strings.Contains(err.Error(), "400"){
+			argDbCreated = false;
+		}
 	}
-
 }

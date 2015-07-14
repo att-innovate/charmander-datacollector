@@ -5,7 +5,6 @@ import (
 	"fmt"
 	"io/ioutil"
 	"net/http"
-	"os"
 	"strings"
 	"time"
 )
@@ -36,7 +35,7 @@ type Datametric struct {
 type MetricsJsonStructure struct {
 	Indom     int64 `json:"indom"`
 	Instances []struct {
-		Instance int64 `json:"instance"`
+		Instance int64  `json:"instance"`
 		Name     string `json:"name"`
 	}
 }
@@ -84,11 +83,10 @@ func meteredTask(host string, dockerId string) string {
 	content, err := getContent(requestURL)
 	taskName := strings.TrimSpace(string(content[:]))
 	if err != nil {
-		fmt.Println("error metered:", err)
+		fmt.Println("Error talking to metered service:", err)
 	}
 
 	meteredTasks[dockerId] = taskName
-
 	if taskName, ok := meteredTasks[dockerId]; ok {
 		if ContainerMetered(taskName) {
 			return taskName
@@ -104,42 +102,31 @@ func meteredTask(host string, dockerId string) string {
 func GetInstanceMapping(context *ContextList) {
 	instanceStore = NewInstanceStore()
 
-	var hosts = GetCadvisorHosts()
-
-	if len(hosts) == 0 {
-		fmt.Println("Error: could not talk to redis to obtain host")
-		os.Exit(1)
-	}
-
 	go func(context *ContextList) {
 		for {
-
-			hosts = GetCadvisorHosts()
-			for _, host := range hosts {
-				for _, value := range pcpMetrics {
-
+			for host, contextId := range context.list {
+				for _, value := range PcpMetrics {
 					var requestMetricNames = fmt.Sprint("/_indom?&name=", value)
-
 					var MetricsData MetricsJsonStructure
 
-					response, err := getContent(fmt.Sprint("http://", host, ":44323/pmapi/", context.list[host], requestMetricNames))
+					response, err := getContent(fmt.Sprint("http://", host, ":44323/pmapi/", contextId, requestMetricNames))
 					if err != nil {
-						fmt.Println("error5:", err)
+						fmt.Println("Failed fetching context from host. Error:", err)
+						continue
 					}
 					err = json.Unmarshal(response, &MetricsData)
 					if err != nil {
-						fmt.Println("error6:", err)
+						fmt.Println("Failed unmarshalling context json. Error:", err)
+						continue
 					}
 
 					for _, instance := range MetricsData.Instances {
-
 						var instanceData = InstanceData{
 							Host:       host,
-							Instance:   instance.Instance,
+							InstanceId: instance.Instance,
 							MetricName: value,
 							Value:      instance.Name,
 						}
-
 						instanceStore.AddInstanceData(instanceData)
 					}
 				}
@@ -151,23 +138,24 @@ func GetInstanceMapping(context *ContextList) {
 }
 
 func collectData(host string, contextStore *ContextList) GenericData {
-
-	var combinedMetircString = strings.Join(pcpMetrics, ",")
+	var combinedMetircString = strings.Join(PcpMetrics, ",")
 	var pcpMetric Datametric
 
 	response, err := getContent(fmt.Sprint("http://", host, ":44323/pmapi/", contextStore.list[host], "/_fetch?names=", combinedMetircString))
 	if err != nil {
-		fmt.Println("error3:", err)
+		fmt.Println("Failed getting metrics from host. Error:", err)
+		return GenericData{}
 	}
-
 	err = json.Unmarshal(response, &pcpMetric)
 	if err != nil {
-		fmt.Println("error4:", err)
+		fmt.Println("Failed unmarshalling metric json. Error:", err)
+		return GenericData{}
 	}
 
 	dataMap := make(map[string]map[int64]string)
 	instanceIdMap := make(map[int64]string)
 
+	//initalize data structure with blank value
 	for instanceId, _ := range pcpMetric.Values {
 		dataMap[pcpMetric.Values[instanceId].Name] = instanceIdMap
 
@@ -177,32 +165,31 @@ func collectData(host string, contextStore *ContextList) GenericData {
 	}
 
 	var requestMetricNames = fmt.Sprint("/_indom?&name=", pcpMetric.Values[0].Name)
-
 	var MetricsData MetricsJsonStructure
 
+	//getting docker id from server
 	response, err = getContent(fmt.Sprint("http://", host, ":44323/pmapi/", contextStore.list[host], requestMetricNames))
 	if err != nil {
-		fmt.Println("error5:", err)
+		fmt.Println("Failed getting docker id from host. Error:", err)
+		return GenericData{}
 	}
 	err = json.Unmarshal(response, &MetricsData)
 	if err != nil {
-		fmt.Println("error6:", err)
+		fmt.Println("Failed unmarshalling docker id json. Error::", err)
+		return GenericData{}
 	}
 
 	for _, instanceData := range MetricsData.Instances {
 		dataMap[pcpMetric.Values[0].Name][instanceData.Instance] = instanceData.Name
 	}
-
 	dataFromGetData := getData(host, contextStore.list[host], fmt.Sprint("/_fetch?names=", combinedMetircString))
 
-	var returnObj = GenericData{
+	return GenericData{
 		data:      dataFromGetData,
 		datamap:   dataMap,
 		contextid: contextStore.list[host],
 		host:      host,
 	}
-	return returnObj
-
 }
 
 func getData(host string, context int, suffix string) []byte {
@@ -217,26 +204,27 @@ func getData(host string, context int, suffix string) []byte {
 	}
 }
 
-func processData(gData GenericData) {
-	var host = gData.host
-	var data = gData.data
-	var instanceIdNameMapping = gData.datamap
+func processData(genericData GenericData) {
+	var host = genericData.host
+	var data = genericData.data
+	var instanceIdNameMapping = genericData.datamap
+	var unmarshalledData Datametric
 
-	var unmarshalledData2 Datametric
-
-	err := json.Unmarshal(data, &unmarshalledData2)
+	err := json.Unmarshal(data, &unmarshalledData)
 	if err != nil {
-		fmt.Println("error7:", err)
+		fmt.Println("Failed unmarshalling metric data json:", err)
+		return
 	}
 
 	var metrics []MetricModel
 
 	instances := make(map[int64]struct{})
 
-	for a, b := range unmarshalledData2.Values {
-		for _, c := range unmarshalledData2.Values[a].Instances {
+	//TODO: rename a b c
+	for a, b := range unmarshalledData.Values {
+		for _, c := range unmarshalledData.Values[a].Instances {
 			var tempMetrics = MetricModel{
-				Timestamp:  unmarshalledData2.Timestamp.Time,
+				Timestamp:  unmarshalledData.Timestamp.Time,
 				Metricname: b.Name,
 				Instanceid: c.Instance,
 				Value:      c.Value,
@@ -251,16 +239,16 @@ func processData(gData GenericData) {
 	var machinePoints [][]interface{}
 	var networkPoints [][]interface{}
 
-	for key := range instances {
+	for instanceId := range instances {
 
-		var instanceOnly = filterByInstance(metrics, key)
+		var instanceOnly = filterByInstance(metrics, instanceId)
 
 		var filteredData = filterByName(instanceOnly, "cgroup.memory.usage")
 		if len(filteredData) == 0 {
 			continue
 		}
-
-		var instancestoreData = instanceStore.SearchByHost(host).SearchByMetric("network.interface.in.bytes").SearchByInstance(key)
+		//TODO: separate network filter into its own function
+		var instancestoreData = instanceStore.SearchByHost(host).SearchByMetric("network.interface.in.bytes").SearchByInstance(instanceId)
 		var interfaceName = ""
 
 		if len(instancestoreData) != 0 {
@@ -303,7 +291,6 @@ func processData(gData GenericData) {
 			} else {
 
 				var networkInBytesPoints = filteredData4[0].Value - PreviousValues.SearchByInterfaceHost(host, interfaceName).NetworkInBytes
-
 				var networkOutBytesPoints = filteredData5[0].Value - PreviousValues.SearchByInterfaceHost(host, interfaceName).NetworkOutBytes
 
 				networkPoints = append(networkPoints, []interface{}{
@@ -324,8 +311,8 @@ func processData(gData GenericData) {
 				PreviousValues.AddNetworkMetrics(host, interfaceName, metrics)
 			}
 		}
-
-		if key == 0 {
+		//TODO: put into function to handle machine data
+		if instanceId == 0 {
 			var filteredData = filterByName(instanceOnly, "cgroup.cpuacct.stat.system")
 			var cpuUsageSystem = filteredData[0].Value
 
@@ -365,17 +352,16 @@ func processData(gData GenericData) {
 				PreviousValues.AddMachineMetrics(host, metrics)
 
 			}
+			continue
 
 		}
 
-		var id = instanceIdNameMapping["cgroup.memory.usage"][key]
-
+		//TODO: separate this into its own container to check if docker id matches (function would return id or nil)
+		var id = instanceIdNameMapping["cgroup.memory.usage"][instanceId]
 		if !(strings.Contains(id, "docker")) || len(id) < 8 {
 			continue
 		}
-
 		i := strings.LastIndex(id, "/")
-
 		dockerId := id[i+1:]
 		var taskName string
 
@@ -384,6 +370,8 @@ func processData(gData GenericData) {
 		if taskName == "" {
 			continue
 		}
+
+		//TODO: separate this out into its own function for stats/metered
 
 		var memoryUsage = filteredData[0].Value
 

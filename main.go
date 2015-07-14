@@ -1,26 +1,31 @@
 package main
 import (
-	"strings"
 	"time"
+	"flag"
 	"fmt"
-	"runtime"
+	"os"
 )
 
-type Settings struct {
-	Metrics []string
+var PcpMetrics = []string{
+	"cgroup.cpuacct.stat.user",
+	"cgroup.cpuacct.stat.system",
+	"cgroup.memory.usage",
+	"network.interface.in.bytes",
+	"network.interface.out.bytes",
+	"network.interface.out.drops",
+	"network.interface.in.drops",
 }
 
-const DefaultStats = "cgroup.cpuacct.stat.user,cgroup.cpuacct.stat.system,cgroup.memory.usage,network.interface.in.bytes,network.interface.out.bytes,network.interface.out.drops,network.interface.in.drops"
-
-var pcpMetrics []string
-
 func main() {
-
-	pcpMetrics = strings.Split(DefaultStats, ",")
+	flag.Parse()
 
 	var contextStore = NewContext()
-
-	contextStore.UpdateContext()
+	var hosts = GetCadvisorHosts()
+	if len(hosts) == 0 {
+		fmt.Println("Error: Could not talk to redis to obtain host")
+		os.Exit(1)
+	}
+	contextStore.UpdateContext(hosts)
 
 	GetInstanceMapping(contextStore)
 
@@ -30,31 +35,18 @@ func main() {
 
 func doWork(contextStore *ContextList) {
 
-	var hosts = GetCadvisorHosts()
-	c1 := make(chan GenericData, 1)
-
-	for {
-
-		for _, host := range hosts {
-
-			go func(host string) {
-
-				c1 <- collectData(host,contextStore)
-
-			}(host)
-
+	mainLoop := make(chan int, 1)
+		for host, _ := range contextStore.list {
+			go func(host string, contextStore *ContextList) {
+				for {
+					var responseData = collectData(host, contextStore)
+					if responseData.host != ""{
+						processData(responseData)
+					}
+					time.Sleep(time.Second * 1)
+				}
+			}(host, contextStore)
 		}
+	<-mainLoop
 
-		time.Sleep(time.Second * 5)
-
-		for i := 0; i < len(hosts); i++ {
-
-			res := <-c1
-
-			processData(res)
-			fmt.Println("GoRoutines:", runtime.NumGoroutine())
-
-		}
-
-	}
 }

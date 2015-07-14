@@ -2,7 +2,7 @@ package main
 
 type InstanceData struct {
 	Host string
-	Instance int64
+	InstanceId int64
 	MetricName string
 	Value string
 }
@@ -25,8 +25,8 @@ func (instanceStore InstanceStore) SearchByMetric(metric string) InstanceStore {
 	return instancefilterByMetric(instanceStore, metric)
 }
 
-func (instanceStore InstanceStore) SearchByInstance(instance int64) InstanceStore {
-	return instancefilterByInstance(instanceStore, instance)
+func (instanceStore InstanceStore) SearchByInstance(instanceId int64) InstanceStore {
+	return instancefilterByInstanceId(instanceStore, instanceId)
 }
 
 func instancefilterByHost(instancedata InstanceStore, host string) InstanceStore {
@@ -37,8 +37,8 @@ func instancefilterByMetric(instancedata InstanceStore, metricName string) Insta
 	return instanceFilter(instancedata, func(metric InstanceData) bool { return metric.MetricName == metricName })
 }
 
-func instancefilterByInstance(instancedata InstanceStore, instanceId int64) InstanceStore {
-	return instanceFilter(instancedata, func(metric InstanceData) bool { return metric.Instance == instanceId })
+func instancefilterByInstanceId(instancedata InstanceStore, instanceId int64) InstanceStore {
+	return instanceFilter(instancedata, func(metric InstanceData) bool { return metric.InstanceId == instanceId })
 }
 
 func instanceFilter(instancestore InstanceStore, fn func(InstanceData) bool) InstanceStore {
