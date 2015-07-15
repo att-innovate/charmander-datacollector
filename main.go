@@ -43,7 +43,7 @@ func doWork(contextStore *ContextList) {
 					if responseData.host != ""{
 						processData(responseData)
 					}
-					time.Sleep(time.Second * 1)
+					time.Sleep(time.Second * 5)
 				}
 			}(host, contextStore)
 		}

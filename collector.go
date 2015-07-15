@@ -12,6 +12,10 @@ import (
 var PreviousValues = NewValueStore()
 var instanceStore = NewInstanceStore()
 
+var statsPoints [][]interface{}
+var machinePoints [][]interface{}
+var networkPoints [][]interface{}
+
 type Param []struct {
 	Instance []int
 	Name     string
@@ -235,197 +239,188 @@ func processData(genericData GenericData) {
 		}
 	}
 
-	var statPoints [][]interface{}
-	var machinePoints [][]interface{}
-	var networkPoints [][]interface{}
-
 	for instanceId := range instances {
-
 		var instanceOnly = filterByInstance(metrics, instanceId)
 
-		var filteredData = filterByName(instanceOnly, "cgroup.memory.usage")
-		if len(filteredData) == 0 {
-			continue
-		}
-		//TODO: separate network filter into its own function
-		var instancestoreData = instanceStore.SearchByHost(host).SearchByMetric("network.interface.in.bytes").SearchByInstance(instanceId)
-		var interfaceName = ""
-
-		if len(instancestoreData) != 0 {
-			interfaceName = instancestoreData[0].Value
-
-			var filteredData4 = filterByName(instanceOnly, "network.interface.in.bytes")
-			var networkInBytes int64
-
-			if len(filteredData4) != 0 {
-				networkInBytes = filteredData4[0].Value
-			}
-
-			var filteredData5 = filterByName(instanceOnly, "network.interface.out.bytes")
-			var networkOutBytes int64
-			if len(filteredData5) != 0 {
-				networkOutBytes = filteredData5[0].Value
-			}
-
-			var filteredData6 = filterByName(instanceOnly, "network.interface.out.drops")
-			var networkInDrops int64
-			if len(filteredData6) != 0 {
-				networkInDrops = filteredData6[0].Value
-			}
-
-			var filteredData7 = filterByName(instanceOnly, "network.interface.in.drops")
-			var networkOutDrops int64
-			if len(filteredData7) != 0 {
-				networkOutDrops = filteredData7[0].Value
-			}
-
-			if PreviousValues.SearchByInterfaceHost(host, interfaceName).NetworkInBytes == 0 {
-
-				var metrics = Metrics{
-					NetworkInBytes:  networkInBytes,
-					NetworkOutBytes: networkOutBytes,
-				}
-
-				PreviousValues.AddNetworkMetrics(host, interfaceName, metrics)
-
-			} else {
-
-				var networkInBytesPoints = filteredData4[0].Value - PreviousValues.SearchByInterfaceHost(host, interfaceName).NetworkInBytes
-				var networkOutBytesPoints = filteredData5[0].Value - PreviousValues.SearchByInterfaceHost(host, interfaceName).NetworkOutBytes
-
-				networkPoints = append(networkPoints, []interface{}{
-
-					filteredData[0].Timestamp,
-					host,
-					networkInBytesPoints,
-					networkOutBytesPoints,
-					interfaceName,
-					networkInDrops,
-					networkOutDrops,
-				})
-
-				var metrics = Metrics{
-					NetworkInBytes:  networkInBytes,
-					NetworkOutBytes: networkOutBytes,
-				}
-				PreviousValues.AddNetworkMetrics(host, interfaceName, metrics)
-			}
-		}
-		//TODO: put into function to handle machine data
 		if instanceId == 0 {
-			var filteredData = filterByName(instanceOnly, "cgroup.cpuacct.stat.system")
-			var cpuUsageSystem = filteredData[0].Value
-
-			var filteredData2 = filterByName(instanceOnly, "cgroup.memory.usage")
-			var memoryUsage = filteredData2[0].Value
-
-			var filteredData3 = filterByName(instanceOnly, "cgroup.cpuacct.stat.user")
-			var cpuUsageUser = filteredData3[0].Value
-
-			if PreviousValues.SearchByHost(host).CPUSystem == 0 {
-
-				var metrics = Metrics{
-					CPUSystem:   cpuUsageSystem,
-					CPUUser:     cpuUsageUser,
-					MemoryUsage: memoryUsage,
-				}
-				PreviousValues.AddMachineMetrics(host, metrics)
-
-			} else {
-
-				var CPUSystemPercentage = float64(cpuUsageSystem-PreviousValues.SearchByHost(host).CPUSystem) / float64(10.000)
-				var CPUUserPercentage = float64(cpuUsageUser-PreviousValues.SearchByHost(host).CPUUser) / float64(10.000)
-
-				machinePoints = append(machinePoints, []interface{}{
-					filteredData[0].Timestamp,
-					host,
-					memoryUsage,
-					CPUSystemPercentage,
-					CPUUserPercentage,
-				})
-
-				var metrics = Metrics{
-					CPUSystem:   cpuUsageSystem,
-					CPUUser:     cpuUsageUser,
-					MemoryUsage: memoryUsage,
-				}
-				PreviousValues.AddMachineMetrics(host, metrics)
-
-			}
-			continue
-
+			processMachineData(host, instanceOnly)
 		}
 
-		//TODO: separate this into its own container to check if docker id matches (function would return id or nil)
-		var id = instanceIdNameMapping["cgroup.memory.usage"][instanceId]
-		if !(strings.Contains(id, "docker")) || len(id) < 8 {
+		var instancestoreData = instanceStore.SearchByHost(host).SearchByMetric("network.interface.in.bytes").SearchByInstance(instanceId)
+		if len(instancestoreData) != 0 {
+			interfaceName := instancestoreData[0].Value
+			processNetworkData(host, instanceOnly, interfaceName)
 			continue
 		}
-		i := strings.LastIndex(id, "/")
-		dockerId := id[i+1:]
-		var taskName string
 
-		taskName = meteredTask(host, dockerId)
-
+		var taskName = getTaskName(host, instanceIdNameMapping["cgroup.memory.usage"][instanceId])
 		if taskName == "" {
 			continue
 		}
 
-		//TODO: separate this out into its own function for stats/metered
-
-		var memoryUsage = filteredData[0].Value
-
-		var filteredData2 = filterByName(instanceOnly, "cgroup.cpuacct.stat.user")
-		var cpuUsageUser = filteredData2[0].Value
-
-		var filteredData3 = filterByName(instanceOnly, "cgroup.cpuacct.stat.system")
-		var cpuUsageSystem = filteredData3[0].Value
-
-		if PreviousValues.SearchById(taskName).CPUSystem == 0 {
-
-			var metrics = Metrics{
-				CPUSystem:   cpuUsageSystem,
-				CPUUser:     cpuUsageUser,
-				MemoryUsage: memoryUsage,
-			}
-			PreviousValues.AddStatsMetrics(taskName, metrics)
-
-		} else {
-
-			var CPUSystemPercentage = float64(cpuUsageSystem-PreviousValues.SearchById(taskName).CPUSystem) / float64(10.000)
-			var CPUUserPercentage = float64(cpuUsageUser-PreviousValues.SearchById(taskName).CPUUser) / float64(10.000)
-
-			statPoints = append(statPoints, []interface{}{
-				filteredData[0].Timestamp,
-				memoryUsage,
-				host,
-				taskName,
-				CPUUserPercentage,
-				CPUSystemPercentage,
-			})
-
-			var metrics = Metrics{
-				CPUSystem:   cpuUsageSystem,
-				CPUUser:     cpuUsageUser,
-				MemoryUsage: memoryUsage,
-			}
-			PreviousValues.AddStatsMetrics(taskName, metrics)
-
-		}
+		processStatsData(host, instanceOnly, taskName)
 
 	}
 
-	if statPoints != nil {
-		Write(statPoints, "stats")
+	if statsPoints != nil {
+		Write(statsPoints, "stats")
+		statsPoints = [][]interface{}{}
 	}
 
 	if machinePoints != nil {
 		Write(machinePoints, "machine")
+		machinePoints = [][]interface{}{}
 	}
 
 	if networkPoints != nil {
 		Write(networkPoints, "network")
+		networkPoints =[][]interface{}{}
 	}
+}
+
+func processNetworkData(host string, data []MetricModel, interfaceName string){
+
+	var filteredData4 = filterByName(data, "network.interface.in.bytes")
+	var networkInBytes int64
+	if len(filteredData4) != 0 {
+		networkInBytes = filteredData4[0].Value
+	}
+
+	var filteredData5 = filterByName(data, "network.interface.out.bytes")
+	var networkOutBytes int64
+	if len(filteredData5) != 0 {
+		networkOutBytes = filteredData5[0].Value
+	}
+
+	var filteredData6 = filterByName(data, "network.interface.out.drops")
+	var networkInDrops int64
+	if len(filteredData6) != 0 {
+		networkInDrops = filteredData6[0].Value
+	}
+
+	var filteredData7 = filterByName(data, "network.interface.in.drops")
+	var networkOutDrops int64
+	if len(filteredData7) != 0 {
+		networkOutDrops = filteredData7[0].Value
+	}
+
+	if PreviousValues.SearchByInterfaceHost(host, interfaceName).NetworkInBytes == 0 {
+		var metrics = Metrics{
+			NetworkInBytes:  networkInBytes,
+			NetworkOutBytes: networkOutBytes,
+		}
+		PreviousValues.AddNetworkMetrics(host, interfaceName, metrics)
+	} else {
+		var networkInBytesPoints = filteredData4[0].Value - PreviousValues.SearchByInterfaceHost(host, interfaceName).NetworkInBytes
+		var networkOutBytesPoints = filteredData5[0].Value - PreviousValues.SearchByInterfaceHost(host, interfaceName).NetworkOutBytes
+
+		networkPoints = append(networkPoints, []interface{}{
+			filteredData4[0].Timestamp,
+			host,
+			networkInBytesPoints,
+			networkOutBytesPoints,
+			interfaceName,
+			networkInDrops,
+			networkOutDrops,
+		})
+
+		var metrics = Metrics{
+			NetworkInBytes:  networkInBytes,
+			NetworkOutBytes: networkOutBytes,
+		}
+		PreviousValues.AddNetworkMetrics(host, interfaceName, metrics)
+	}
+}
+
+func processMachineData(host string, data []MetricModel){
+
+	var filteredData = filterByName(data, "cgroup.cpuacct.stat.system")
+	var cpuUsageSystem = filteredData[0].Value
+
+	var filteredData2 = filterByName(data, "cgroup.memory.usage")
+	var memoryUsage = filteredData2[0].Value
+
+	var filteredData3 = filterByName(data, "cgroup.cpuacct.stat.user")
+	var cpuUsageUser = filteredData3[0].Value
+
+	if PreviousValues.SearchByHost(host).CPUSystem == 0 {
+		var metrics = Metrics{
+			CPUSystem:   cpuUsageSystem,
+			CPUUser:     cpuUsageUser,
+			MemoryUsage: memoryUsage,
+		}
+		PreviousValues.AddMachineMetrics(host, metrics)
+	} else {
+		var CPUSystemPercentage = float64(cpuUsageSystem-PreviousValues.SearchByHost(host).CPUSystem) / float64(10.000)
+		var CPUUserPercentage = float64(cpuUsageUser-PreviousValues.SearchByHost(host).CPUUser) / float64(10.000)
+
+		machinePoints = append(machinePoints, []interface{}{
+			filteredData[0].Timestamp,
+			host,
+			memoryUsage,
+			CPUSystemPercentage,
+			CPUUserPercentage,
+		})
+
+		var metrics = Metrics{
+			CPUSystem:   cpuUsageSystem,
+			CPUUser:     cpuUsageUser,
+			MemoryUsage: memoryUsage,
+		}
+		PreviousValues.AddMachineMetrics(host, metrics)
+	}
+}
+
+func processStatsData(host string, data []MetricModel, taskName string){
+	var filteredData = filterByName(data, "cgroup.memory.usage")
+	var memoryUsage = filteredData[0].Value
+
+	var filteredData2 = filterByName(data, "cgroup.cpuacct.stat.user")
+	var cpuUsageUser = filteredData2[0].Value
+
+	var filteredData3 = filterByName(data, "cgroup.cpuacct.stat.system")
+	var cpuUsageSystem = filteredData3[0].Value
+
+	if PreviousValues.SearchById(taskName).CPUSystem == 0 {
+
+		var metrics = Metrics{
+			CPUSystem:   cpuUsageSystem,
+			CPUUser:     cpuUsageUser,
+			MemoryUsage: memoryUsage,
+		}
+		PreviousValues.AddStatsMetrics(taskName, metrics)
+
+	} else {
+		var CPUSystemPercentage = float64(cpuUsageSystem-PreviousValues.SearchById(taskName).CPUSystem) / float64(10.000)
+		var CPUUserPercentage = float64(cpuUsageUser-PreviousValues.SearchById(taskName).CPUUser) / float64(10.000)
+
+		statsPoints = append(statsPoints, []interface{}{
+			filteredData2[0].Timestamp,
+			memoryUsage,
+			host,
+			taskName,
+			CPUUserPercentage,
+			CPUSystemPercentage,
+		})
+
+		var metrics = Metrics{
+			CPUSystem:   cpuUsageSystem,
+			CPUUser:     cpuUsageUser,
+			MemoryUsage: memoryUsage,
+		}
+		PreviousValues.AddStatsMetrics(taskName, metrics)
+	}
+}
+
+func getTaskName(host string, id string) string{
+	if !(strings.Contains(id, "docker")) || len(id) < 8 {
+		return ""
+	}
+
+	i := strings.LastIndex(id, "/")
+	dockerId := id[i+1:]
+
+	return meteredTask(host, dockerId)
 }
 
 func filterByName(metrics []MetricModel, metricName string) []MetricModel {
