@@ -38,7 +38,7 @@ var (
 	argDbUsername = flag.String("influxdb_username", "root", "InfluxDB username")
 	argDbPassword = flag.String("influxdb_password", "root", "InfluxDB password")
 	argDbHost     = flag.String("influxdb_host", "172.31.2.11:31410", "InfluxDB host:port")
-	argDbName     = flag.String("influxdb_name", "test2", "Influxdb database name")
+	argDbName     = flag.String("influxdb_name", "charmander-dc", "Influxdb database name")
 	argDbCreated = false
 )
 
