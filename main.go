@@ -30,23 +30,21 @@ func main() {
 	GetInstanceMapping(contextStore)
 
 	doWork(contextStore)
-
 }
 
 func doWork(contextStore *ContextList) {
-
-	mainLoop := make(chan int, 1)
-		for host, _ := range contextStore.list {
-			go func(host string, contextStore *ContextList) {
-				for {
-					var responseData = collectData(host, contextStore)
-					if responseData.host != ""{
-						processData(responseData)
-					}
-					time.Sleep(time.Second * 5)
+	for host, _ := range contextStore.list {
+		go func(host string, contextStore *ContextList) {
+			for {
+				var responseData = collectData(host, contextStore)
+				if responseData.host != ""{
+					processData(responseData)
 				}
-			}(host, contextStore)
-		}
-	<-mainLoop
+				time.Sleep(time.Second * 5)
+			}
+		}(host, contextStore)
+	}
 
+	keepAlive := make(chan int, 1)
+	<-keepAlive
 }
