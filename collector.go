@@ -221,21 +221,17 @@ func processData(genericData GenericData) {
 	}
 
 	var metrics []MetricModel
-
 	instances := make(map[int64]struct{})
-
-	//TODO: rename a b c
-	for a, b := range unmarshalledData.Values {
-		for _, c := range unmarshalledData.Values[a].Instances {
+	for instanceId, pcpMetrics := range unmarshalledData.Values {
+		for _, metric := range unmarshalledData.Values[instanceId].Instances {
 			var tempMetrics = MetricModel{
 				Timestamp:  unmarshalledData.Timestamp.Time,
-				Metricname: b.Name,
-				Instanceid: c.Instance,
-				Value:      c.Value,
+				Metricname: pcpMetrics.Name,
+				Instanceid: metric.Instance,
+				Value:      metric.Value,
 			}
 			metrics = append(metrics, tempMetrics)
-			instances[c.Instance] = struct{}{}
-
+			instances[metric.Instance] = struct{}{}
 		}
 	}
 
@@ -254,7 +250,7 @@ func processData(genericData GenericData) {
 		}
 
 		var taskName = getTaskName(host, instanceIdNameMapping["cgroup.memory.usage"][instanceId])
-		if taskName == "" {
+		if len(taskName) < 1{
 			continue
 		}
 
@@ -262,17 +258,17 @@ func processData(genericData GenericData) {
 
 	}
 
-	if statsPoints != nil {
+	if len(statsPoints) > 0 {
 		Write(statsPoints, "stats")
 		statsPoints = [][]interface{}{}
 	}
 
-	if machinePoints != nil {
+	if len(machinePoints) > 0 {
 		Write(machinePoints, "machine")
 		machinePoints = [][]interface{}{}
 	}
 
-	if networkPoints != nil {
+	if len(networkPoints) > 0 {
 		Write(networkPoints, "network")
 		networkPoints =[][]interface{}{}
 	}
@@ -416,10 +412,8 @@ func getTaskName(host string, id string) string{
 	if !(strings.Contains(id, "docker")) || len(id) < 8 {
 		return ""
 	}
-
 	i := strings.LastIndex(id, "/")
 	dockerId := id[i+1:]
-
 	return meteredTask(host, dockerId)
 }
 

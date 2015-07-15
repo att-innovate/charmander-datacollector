@@ -54,7 +54,7 @@ func Write(data [][]interface{}, dataType string) {
 	if (argDbCreated == false) {
 		argDbCreated = true
 		if err := c.CreateDatabase(*argDbName); err != nil {
-			fmt.Println("Database creation error - %s", err)
+			fmt.Println("Error creating database:", err)
 		}
 	}
 
@@ -85,6 +85,7 @@ func Write(data [][]interface{}, dataType string) {
 
 	if err := c.WriteSeriesWithTimePrecision([]*client.Series{series}, client.Second); err != nil {
 		fmt.Println("Failed to write",dataType,"to influxDb.", err)
+		fmt.Println("Data:",series)
 		if strings.Contains(err.Error(), "400"){
 			argDbCreated = false;
 		}
