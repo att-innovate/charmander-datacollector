@@ -1,0 +1,15 @@
+{
+	"ImportPath": "github.com/att-innovate/charmander-datacollector",
+	"GoVersion": "go1.4.2",
+	"Deps": [
+		{
+			"ImportPath": "github.com/golang/glog",
+			"Rev": "d1c4472bf2efd3826f2b5bdcc02d8416798d678c"
+		},
+		{
+			"ImportPath": "github.com/influxdb/influxdb/client",
+			"Comment": "v0.8.4-8-g9c31291",
+			"Rev": "9c31291ca0ed6887072d72586de11b5938184008"
+		}
+	]
+}
