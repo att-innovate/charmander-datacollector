@@ -64,7 +64,7 @@ var (
 	argDbCreated = false
 )
 
-func Write(data [][]interface{}, dataType string) {
+func Write(data [][]interface{}, dataType string) bool {
 
 	c, err := client.NewClient(&client.ClientConfig{
 		Host:     *argDbHost,
@@ -96,7 +96,7 @@ func Write(data [][]interface{}, dataType string) {
 		column = Network
 	default:
 		fmt.Println("Error: unrecognized database")
-		return
+		return false
 	}
 
 	series := &client.Series{
@@ -111,5 +111,8 @@ func Write(data [][]interface{}, dataType string) {
 		if strings.Contains(err.Error(), "400"){
 			argDbCreated = false;
 		}
+		return false
 	}
+
+	return true
 }

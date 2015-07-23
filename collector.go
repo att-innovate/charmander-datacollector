@@ -281,19 +281,36 @@ func processData(genericData GenericData) {
 	}
 
 	if len(statsPoints) > 0 {
-		Write(statsPoints, "stats")
-		statsPoints = [][]interface{}{}
+		var success = Write(statsPoints, "stats")
+		if success {
+			statsPoints = [][]interface{}{}
+		}
 	}
 
 	if len(machinePoints) > 0 {
-		Write(machinePoints, "machine")
-		machinePoints = [][]interface{}{}
+		var success = Write(machinePoints, "machine")
+		if success {
+			machinePoints = [][]interface{}{}
+		}
 	}
 
 	if len(networkPoints) > 0 {
-		Write(networkPoints, "network")
-		networkPoints =[][]interface{}{}
+		var success = Write(networkPoints, "network")
+		if success {
+			networkPoints =[][]interface{}{}
+		}
+
 	}
+
+	if len(machinePoints) > 100{
+		clearPoints()
+	}
+}
+
+func clearPoints(){
+	statsPoints = [][]interface{}{}
+	machinePoints = [][]interface{}{}
+	networkPoints =[][]interface{}{}
 }
 
 func processNetworkData(host string, data []MetricModel, interfaceName string){
