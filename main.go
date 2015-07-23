@@ -40,13 +40,20 @@ var PcpMetrics = []string{
 
 func main() {
 	flag.Parse()
-
 	var contextStore = NewContext()
 	var hosts = GetCadvisorHosts()
-	if len(hosts) == 0 {
-		fmt.Println("Error: Could not talk to redis to obtain host")
-		os.Exit(1)
+	var startTime = time.Now()
+	for len(hosts) < 1 {
+		fmt.Println("Error: Could not talk to redis to obtain host, retrying in 5 seconds.")
+		time.Sleep(time.Second * 5)
+		hosts = GetCadvisorHosts()
+
+		if time.Now().Sub(startTime) > 300*time.Second {
+			fmt.Println("Error: Could not talk to redis to obtain host after 5 minutes, exiting.")
+			os.Exit(1)
+		}
 	}
+
 	contextStore.UpdateContext(hosts)
 
 	GetInstanceMapping(contextStore)
