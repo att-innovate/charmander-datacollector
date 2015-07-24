@@ -37,6 +37,8 @@ type ContextList struct {
 
 func (instanceStore *ContextList) UpdateContext(hosts map[string]string) {
 
+	fmt.Println("Updating pcp Context")
+
 	for _, host := range hosts {
 
 		content, err := getContent(fmt.Sprint("http://", host, ":44323/pmapi/context?hostspec=localhost&polltimeout=120"))

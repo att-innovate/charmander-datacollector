@@ -110,6 +110,7 @@ func meteredTask(host string, dockerId string) string {
 	taskName := strings.TrimSpace(string(content[:]))
 	if err != nil {
 		fmt.Println("Error talking to metered service:", err)
+		return ""
 	}
 
 	meteredTasks[dockerId] = taskName
@@ -299,7 +300,6 @@ func processData(genericData GenericData) {
 		if success {
 			networkPoints =[][]interface{}{}
 		}
-
 	}
 
 	if len(machinePoints) > 100{
