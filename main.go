@@ -21,12 +21,16 @@
 // THE SOFTWARE.
 
 package main
+
 import (
-	"time"
 	"flag"
-	"fmt"
-	"os"
+	"time"
+
+	"github.com/golang/glog"
 )
+
+var config = Config{}
+var argDbCreated = false
 
 var PcpMetrics = []string{
 	"cgroup.cpuacct.stat.user",
@@ -38,19 +42,57 @@ var PcpMetrics = []string{
 	"network.interface.in.drops",
 }
 
-func main() {
+func init() {
+	//need to switch ip when deploying for prod vs local dev
+	//var redisHost = flag.String("source_redis_host", "127.0.0.1:6379", "Redis IP Address:Port")
+	flag.StringVar(
+		&config.RedisHost,
+		"source_redis_host",
+		"172.31.2.11:31600",
+		"Redis IP Address:Port",
+	)
+
+	flag.StringVar(
+		&config.Username,
+		"influxdb_username",
+		"root",
+		"InfluxDB username",
+	)
+
+	flag.StringVar(
+		&config.Password,
+		"influxdb_password",
+		"root",
+		"InfluxDB password",
+	)
+
+	flag.StringVar(
+		&config.DatabaseHost,
+		"influxdb_host",
+		"172.31.2.11:31410",
+		"InfluxDB host:port",
+	)
+
+	flag.StringVar(
+		&config.DatabaseName,
+		"influxdb_name",
+		"charmander-dc",
+		"Influxdb database name",
+	)
 	flag.Parse()
+}
+
+func main() {
 	var contextStore = NewContext()
 	var hosts = GetCadvisorHosts()
 	var startTime = time.Now()
 	for len(hosts) < 1 {
-		fmt.Println("Error: Could not talk to redis to obtain host, retrying in 5 seconds.")
+		glog.Error("Could not talk to redis to obtain host, retrying in 5 seconds.")
 		time.Sleep(time.Second * 5)
 		hosts = GetCadvisorHosts()
 
 		if time.Now().Sub(startTime) > 300*time.Second {
-			fmt.Println("Error: Could not talk to redis to obtain host after 5 minutes, exiting.")
-			os.Exit(1)
+			glog.Fatal("Could not talk to redis to obtain host after 5 minutes, exiting.")
 		}
 	}
 
@@ -66,7 +108,7 @@ func doWork(contextStore *ContextList) {
 		go func(host string, contextStore *ContextList) {
 			for {
 				var responseData = collectData(host, contextStore)
-				if responseData.host != ""{
+				if responseData.host != "" {
 					processData(responseData)
 				}
 				time.Sleep(time.Second * 5)

@@ -23,8 +23,8 @@
 package main
 
 import (
-	"fmt"
 	"encoding/json"
+	"fmt"
 )
 
 type contextObj struct {
@@ -43,7 +43,7 @@ func (instanceStore *ContextList) UpdateContext(hosts map[string]string) {
 
 		content, err := getContent(fmt.Sprint("http://", host, ":44323/pmapi/context?hostspec=localhost&polltimeout=120"))
 		if err != nil {
-			fmt.Println("Cannot get context from:",host,".", err)
+			fmt.Println("Cannot get context from:", host, ".", err)
 			continue
 		}
 
@@ -57,8 +57,8 @@ func (instanceStore *ContextList) UpdateContext(hosts map[string]string) {
 	}
 }
 
-func NewContext() *ContextList{
-	return &ContextList{list:make(map[string]int)}
+func NewContext() *ContextList {
+	return &ContextList{list: make(map[string]int)}
 }
 
 func (contextList *ContextList) addContext(host string, context int) {

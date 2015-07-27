@@ -24,16 +24,12 @@ package main
 
 import (
 	"bufio"
-	"flag"
 	"net"
 	"strconv"
 	"time"
 
 	"github.com/golang/glog"
 )
-//need to switch ip when deploying for prod vs local dev
-//var redisHost = flag.String("source_redis_host", "127.0.0.1:6379", "Redis IP Address:Port")
-var redisHost = flag.String("source_redis_host", "172.31.2.11:31600", "Redis IP Address:Port")
 
 func ContainerReady(containerName string) bool {
 	if redis := redisAvailable(); redis != nil {
@@ -85,7 +81,7 @@ func GetCadvisorHosts() map[string]string {
 
 func redisAvailable() net.Conn {
 
-	connection, error := net.DialTimeout("tcp", *redisHost, 2*time.Second)
+	connection, error := net.DialTimeout("tcp", config.RedisHost, 2*time.Second)
 	if error != nil {
 		return nil
 	}

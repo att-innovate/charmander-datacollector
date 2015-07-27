@@ -23,7 +23,6 @@
 package main
 
 import (
-	"flag"
 	"fmt"
 	"github.com/influxdb/influxdb/client"
 	"strings"
@@ -35,7 +34,7 @@ var Machine = []string{
 	"memory_usage",
 	"cpu_usage_system",
 	"cpu_usage_user",
-	}
+}
 
 var Stats = []string{
 	"time",
@@ -44,7 +43,7 @@ var Stats = []string{
 	"container_name",
 	"cpu_usage_user",
 	"cpu_usage_system",
-	}
+}
 
 var Network = []string{
 	"time",
@@ -56,28 +55,20 @@ var Network = []string{
 	"network_out_drops",
 }
 
-var (
-	argDbUsername = flag.String("influxdb_username", "root", "InfluxDB username")
-	argDbPassword = flag.String("influxdb_password", "root", "InfluxDB password")
-	argDbHost     = flag.String("influxdb_host", "172.31.2.11:31410", "InfluxDB host:port")
-	argDbName     = flag.String("influxdb_name", "charmander-dc", "Influxdb database name")
-	argDbCreated = false
-)
-
 func Write(data [][]interface{}, dataType string) bool {
 
 	c, err := client.NewClient(&client.ClientConfig{
-		Host:     *argDbHost,
-		Username: *argDbUsername,
-		Password: *argDbPassword,
-		Database: *argDbName,
+		Host:     config.DatabaseHost,
+		Username: config.Username,
+		Password: config.Password,
+		Database: config.DatabaseName,
 	})
 
-	if (argDbCreated == false) {
+	if argDbCreated == false {
 		argDbCreated = true
-		if err := c.CreateDatabase(*argDbName); err != nil {
+		if err := c.CreateDatabase(config.DatabaseName); err != nil {
 			fmt.Println("Error creating database:", err)
-		}else {
+		} else {
 			fmt.Println("Creating Database")
 		}
 	}
@@ -108,10 +99,10 @@ func Write(data [][]interface{}, dataType string) bool {
 	}
 
 	if err := c.WriteSeriesWithTimePrecision([]*client.Series{series}, client.Second); err != nil {
-		fmt.Println("Failed to write",dataType,"to influxDb.", err)
-		fmt.Println("Data:",series)
-		if strings.Contains(err.Error(), "400"){
-			argDbCreated = false;
+		fmt.Println("Failed to write", dataType, "to influxDb.", err)
+		fmt.Println("Data:", series)
+		if strings.Contains(err.Error(), "400") {
+			argDbCreated = false
 		}
 		return false
 	}
