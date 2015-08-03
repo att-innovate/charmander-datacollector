@@ -71,6 +71,7 @@ type MetricModel struct {
 	Metricname string
 	Instanceid int64
 	Value      int64
+	Host	   string
 }
 
 type GenericData struct {
@@ -252,6 +253,7 @@ func processData(genericData GenericData) {
 				Metricname: pcpMetrics.Name,
 				Instanceid: metric.Instance,
 				Value:      metric.Value,
+				Host:		host,
 			}
 			metrics = append(metrics, tempMetrics)
 			instances[metric.Instance] = struct{}{}
@@ -259,7 +261,8 @@ func processData(genericData GenericData) {
 	}
 
 	for instanceId := range instances {
-		var instanceOnly = filterByInstance(metrics, instanceId)
+		var hostData = filterByHost(metrics, host)
+		var instanceOnly = filterByInstance(hostData, instanceId)
 
 		if instanceId == 0 {
 			processMachineData(host, instanceOnly)
@@ -269,10 +272,10 @@ func processData(genericData GenericData) {
 		if len(instancestoreData) != 0 {
 			interfaceName := instancestoreData[0].Value
 			processNetworkData(host, instanceOnly, interfaceName)
-			continue
 		}
 
 		var taskName = getTaskName(host, instanceIdNameMapping["cgroup.memory.usage"][instanceId])
+
 		if len(taskName) < 1{
 			continue
 		}
@@ -462,6 +465,10 @@ func filterByName(metrics []MetricModel, metricName string) []MetricModel {
 
 func filterByInstance(metrics []MetricModel, instanceId int64) []MetricModel {
 	return filter(metrics, func(metric MetricModel) bool { return metric.Instanceid == instanceId })
+}
+
+func filterByHost(metrics []MetricModel, host string) []MetricModel {
+	return filter(metrics, func(metric MetricModel) bool { return metric.Host == host })
 }
 
 func filter(metrics []MetricModel, fn func(MetricModel) bool) []MetricModel {
