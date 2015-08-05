@@ -262,16 +262,17 @@ func processData(genericData GenericData) {
 
 	for instanceId := range instances {
 		var hostData = filterByHost(metrics, host)
-		var instanceOnly = filterByInstance(hostData, instanceId)
+		var instanceData = filterByInstance(hostData, instanceId)
 
 		if instanceId == 0 {
-			processMachineData(host, instanceOnly)
+			processMachineData(host, instanceData)
 		}
 
 		var instancestoreData = instanceStore.SearchByHost(host).SearchByMetric("network.interface.in.bytes").SearchByInstance(instanceId)
+		//if len(instancestoreData) != 0 && len(instanceData) != 0 {
 		if len(instancestoreData) != 0 {
 			interfaceName := instancestoreData[0].Value
-			processNetworkData(host, instanceOnly, interfaceName)
+			processNetworkData(host, instanceData, interfaceName)
 		}
 
 		var taskName = getTaskName(host, instanceIdNameMapping["cgroup.memory.usage"][instanceId])
@@ -280,7 +281,7 @@ func processData(genericData GenericData) {
 			continue
 		}
 
-		processStatsData(host, instanceOnly, taskName)
+		processStatsData(host, instanceData, taskName)
 
 	}
 
@@ -340,6 +341,11 @@ func processNetworkData(host string, data []MetricModel, interfaceName string){
 	var networkOutDrops int64
 	if len(filteredData7) != 0 {
 		networkOutDrops = filteredData7[0].Value
+	}
+
+	if len(filteredData4) < 1 || len (filteredData5) < 1 {
+		fmt.Println("Error: filteredData length is 0",filteredData4,filteredData5)
+		return
 	}
 
 	if PreviousValues.SearchByInterfaceHost(host, interfaceName).NetworkInBytes == 0 {
