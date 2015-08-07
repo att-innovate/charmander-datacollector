@@ -28,6 +28,7 @@ import (
 
 	"github.com/golang/glog"
 	"strconv"
+	"os"
 )
 
 var config = Config{}
@@ -111,11 +112,16 @@ func main() {
 }
 
 func doWork(contextStore *ContextList) {
-	interval, _ := strconv.Atoi(config.Interval)
-	if interval < 1{
-		interval = 5
-		glog.Error("Unrecognized interval, using 5 seconds.")
+	interval, err := strconv.Atoi(config.Interval)
+	if err != nil {
+		glog.Fatal("Unrecognized interval, Please use integers 1-5 Exiting.")
+		os.Exit(1)
 	}
+	if interval <1 || interval >5 {
+		interval = 5
+		glog.Error("Interval outside of range, using 5 seconds.")
+	}
+
 	duration := time.Duration(interval)
 
 	for host, _ := range contextStore.list {
