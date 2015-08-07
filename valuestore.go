@@ -40,6 +40,7 @@ type Metrics struct {
 	MemorySystem int64
 	NetworkInBytes int64
 	NetworkOutBytes int64
+	TimeStamp	int64
 }
 
 func NewValueStore() *PreviousValue {

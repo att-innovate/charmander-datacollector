@@ -79,6 +79,12 @@ func init() {
 		"charmander-dc",
 		"Influxdb database name",
 	)
+	flag.IntVar(
+		&config.Interval,
+		"interval",
+		5,
+		"Polling Interval: enter integer 1 - 5. Default is 5.",
+	)
 	flag.Parse()
 }
 
@@ -104,6 +110,11 @@ func main() {
 }
 
 func doWork(contextStore *ContextList) {
+	if (config.Interval < 1){
+		config.Interval = 5
+	}
+	duration := time.Duration(config.Interval)
+
 	for host, _ := range contextStore.list {
 		go func(host string, contextStore *ContextList) {
 			for {
@@ -111,7 +122,7 @@ func doWork(contextStore *ContextList) {
 				if responseData.host != "" {
 					processData(responseData)
 				}
-				time.Sleep(time.Second * 5)
+				time.Sleep(time.Second * duration)
 			}
 		}(host, contextStore)
 	}

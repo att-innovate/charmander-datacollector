@@ -352,11 +352,13 @@ func processNetworkData(host string, data []MetricModel, interfaceName string){
 		var metrics = Metrics{
 			NetworkInBytes:  networkInBytes,
 			NetworkOutBytes: networkOutBytes,
+			TimeStamp: filteredData4[0].Timestamp,
 		}
 		PreviousValues.AddNetworkMetrics(host, interfaceName, metrics)
 	} else {
-		var networkInBytesPoints = filteredData4[0].Value - PreviousValues.SearchByInterfaceHost(host, interfaceName).NetworkInBytes
-		var networkOutBytesPoints = filteredData5[0].Value - PreviousValues.SearchByInterfaceHost(host, interfaceName).NetworkOutBytes
+		var timeDelta = filteredData4[0].Timestamp - PreviousValues.SearchByInterfaceHost(host, interfaceName).TimeStamp
+		var networkInBytesPoints = (filteredData4[0].Value - PreviousValues.SearchByInterfaceHost(host, interfaceName).NetworkInBytes) / timeDelta
+		var networkOutBytesPoints = (filteredData5[0].Value - PreviousValues.SearchByInterfaceHost(host, interfaceName).NetworkOutBytes) / timeDelta
 
 		networkPoints = append(networkPoints, []interface{}{
 			filteredData4[0].Timestamp,
@@ -371,6 +373,7 @@ func processNetworkData(host string, data []MetricModel, interfaceName string){
 		var metrics = Metrics{
 			NetworkInBytes:  networkInBytes,
 			NetworkOutBytes: networkOutBytes,
+			TimeStamp: filteredData4[0].Timestamp,
 		}
 		PreviousValues.AddNetworkMetrics(host, interfaceName, metrics)
 	}
@@ -392,6 +395,7 @@ func processMachineData(host string, data []MetricModel){
 			CPUSystem:   cpuUsageSystem,
 			CPUUser:     cpuUsageUser,
 			MemoryUsage: memoryUsage,
+			TimeStamp: filteredData[0].Timestamp,
 		}
 		PreviousValues.AddMachineMetrics(host, metrics)
 	} else {
@@ -410,6 +414,7 @@ func processMachineData(host string, data []MetricModel){
 			CPUSystem:   cpuUsageSystem,
 			CPUUser:     cpuUsageUser,
 			MemoryUsage: memoryUsage,
+			TimeStamp: filteredData[0].Timestamp,
 		}
 		PreviousValues.AddMachineMetrics(host, metrics)
 	}
@@ -431,6 +436,7 @@ func processStatsData(host string, data []MetricModel, taskName string){
 			CPUSystem:   cpuUsageSystem,
 			CPUUser:     cpuUsageUser,
 			MemoryUsage: memoryUsage,
+			TimeStamp: filteredData2[0].Timestamp,
 		}
 		PreviousValues.AddStatsMetrics(taskName, metrics)
 
@@ -451,6 +457,7 @@ func processStatsData(host string, data []MetricModel, taskName string){
 			CPUSystem:   cpuUsageSystem,
 			CPUUser:     cpuUsageUser,
 			MemoryUsage: memoryUsage,
+			TimeStamp: filteredData2[0].Timestamp,
 		}
 		PreviousValues.AddStatsMetrics(taskName, metrics)
 	}
