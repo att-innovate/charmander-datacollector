@@ -29,6 +29,7 @@ import (
 	"net/http"
 	"strings"
 	"time"
+	"github.com/golang/glog"
 )
 
 var PreviousValues = NewValueStore()
@@ -110,7 +111,7 @@ func meteredTask(host string, dockerId string) string {
 	content, err := getContent(requestURL)
 	taskName := strings.TrimSpace(string(content[:]))
 	if err != nil {
-		fmt.Println("Error talking to metered service:", err)
+		glog.Error("Error talking to metered service:", err)
 		return ""
 	}
 
@@ -139,12 +140,12 @@ func GetInstanceMapping(context *ContextList) {
 
 					response, err := getContent(fmt.Sprint("http://", host, ":44323/pmapi/", contextId, requestMetricNames))
 					if err != nil {
-						fmt.Println("Failed fetching context from host. Error:", err)
+						glog.Error("Failed fetching context from host. Error:", err)
 						continue
 					}
 					err = json.Unmarshal(response, &MetricsData)
 					if err != nil {
-						fmt.Println("Failed unmarshalling context json. Error:", err)
+						glog.Error("Failed unmarshalling context json. Error:", err)
 						continue
 					}
 
@@ -171,12 +172,12 @@ func collectData(host string, contextStore *ContextList) GenericData {
 
 	response, err := getContent(fmt.Sprint("http://", host, ":44323/pmapi/", contextStore.list[host], "/_fetch?names=", combinedMetircString))
 	if err != nil {
-		fmt.Println("Failed getting metrics from host. Error:", err)
+		glog.Error("Failed getting metrics from host. Error:", err)
 		return GenericData{}
 	}
 	err = json.Unmarshal(response, &pcpMetric)
 	if err != nil {
-		fmt.Println("Failed unmarshalling metric json. Error:", err)
+		glog.Error("Failed unmarshalling metric json. Error:", err)
 		return GenericData{}
 	}
 
@@ -198,12 +199,12 @@ func collectData(host string, contextStore *ContextList) GenericData {
 	//getting docker id from server
 	response, err = getContent(fmt.Sprint("http://", host, ":44323/pmapi/", contextStore.list[host], requestMetricNames))
 	if err != nil {
-		fmt.Println("Failed getting docker id from host. Error:", err)
+		glog.Error("Failed getting docker id from host. Error:", err)
 		return GenericData{}
 	}
 	err = json.Unmarshal(response, &MetricsData)
 	if err != nil {
-		fmt.Println("Failed unmarshalling docker id json. Error::", err)
+		glog.Error("Failed unmarshalling docker id json. Error:", err)
 		return GenericData{}
 	}
 
@@ -240,7 +241,7 @@ func processData(genericData GenericData) {
 
 	err := json.Unmarshal(data, &unmarshalledData)
 	if err != nil {
-		fmt.Println("Failed unmarshalling metric data json:", err)
+		glog.Error("Failed unmarshalling metric data json:", err)
 		return
 	}
 
@@ -344,7 +345,7 @@ func processNetworkData(host string, data []MetricModel, interfaceName string){
 	}
 
 	if len(filteredData4) < 1 || len (filteredData5) < 1 {
-		fmt.Println("Error: filteredData length is 0",filteredData4,filteredData5)
+		glog.Error("Error: filteredData length is 0",filteredData4,filteredData5)
 		return
 	}
 

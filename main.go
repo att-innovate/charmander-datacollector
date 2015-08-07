@@ -27,6 +27,7 @@ import (
 	"time"
 
 	"github.com/golang/glog"
+	"strconv"
 )
 
 var config = Config{}
@@ -79,10 +80,10 @@ func init() {
 		"charmander-dc",
 		"Influxdb database name",
 	)
-	flag.IntVar(
+	flag.StringVar(
 		&config.Interval,
 		"interval",
-		5,
+		"5",
 		"Polling Interval: enter integer 1 - 5. Default is 5.",
 	)
 	flag.Parse()
@@ -110,10 +111,12 @@ func main() {
 }
 
 func doWork(contextStore *ContextList) {
-	if (config.Interval < 1){
-		config.Interval = 5
+	interval, _ := strconv.Atoi(config.Interval)
+	if interval < 1{
+		interval = 5
+		glog.Error("Unrecognized interval, using 5 seconds.")
 	}
-	duration := time.Duration(config.Interval)
+	duration := time.Duration(interval)
 
 	for host, _ := range contextStore.list {
 		go func(host string, contextStore *ContextList) {

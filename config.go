@@ -6,5 +6,5 @@ type Config struct {
 	DatabaseHost string
 	DatabaseName string
 	RedisHost    string
-	Interval int
+	Interval 	 string
 }
