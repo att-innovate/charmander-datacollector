@@ -68,6 +68,7 @@ func Write(data [][]interface{}, dataType string) bool {
 		argDbCreated = true
 		if err := c.CreateDatabase(config.DatabaseName); err != nil {
 			fmt.Println("Error creating database:", err)
+			fmt.Println("Using existing database.")
 		} else {
 			fmt.Println("Creating Database")
 		}

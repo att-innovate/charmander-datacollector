@@ -55,6 +55,13 @@ func init() {
 	)
 
 	flag.StringVar(
+		&config.TorcHost,
+		"source_torc_host",
+		"wedge-fb-1:3000",
+		"Redis IP Address:Port",
+	)
+
+	flag.StringVar(
 		&config.Username,
 		"influxdb_username",
 		"root",
@@ -71,14 +78,14 @@ func init() {
 	flag.StringVar(
 		&config.DatabaseHost,
 		"influxdb_host",
-		"172.31.2.11:31410",
+		"10.250.3.94:8086",
 		"InfluxDB host:port",
 	)
 
 	flag.StringVar(
 		&config.DatabaseName,
 		"influxdb_name",
-		"charmander-dc",
+		"torc-datacollector",
 		"Influxdb database name",
 	)
 	flag.StringVar(
@@ -92,15 +99,15 @@ func init() {
 
 func main() {
 	var contextStore = NewContext()
-	var hosts = GetCadvisorHosts()
+	var hosts = getTorcNodes(config.TorcHost)
 	var startTime = time.Now()
 	for len(hosts) < 1 {
-		glog.Error("Could not talk to redis to obtain host, retrying in 5 seconds.")
+		glog.Error("Could not talk to torc to obtain host, retrying in 5 seconds.")
 		time.Sleep(time.Second * 5)
-		hosts = GetCadvisorHosts()
+		hosts = getTorcNodes(config.TorcHost)
 
 		if time.Now().Sub(startTime) > 300*time.Second {
-			glog.Fatal("Could not talk to redis to obtain host after 5 minutes, exiting.")
+			glog.Fatal("Could not talk to torc to obtain host after 5 minutes, exiting.")
 		}
 	}
 

@@ -7,4 +7,5 @@ type Config struct {
 	DatabaseName string
 	RedisHost    string
 	Interval 	 string
+	TorcHost	 string
 }

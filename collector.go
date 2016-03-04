@@ -82,6 +82,10 @@ type GenericData struct {
 	data      []byte
 }
 
+type TaskNameData struct {
+	Result string `json:"result"`
+}
+
 func getContent(url string) ([]byte, error) {
 
 	req, err := http.NewRequest("GET", url, nil)
@@ -107,17 +111,23 @@ func getContent(url string) ([]byte, error) {
 
 func meteredTask(host string, dockerId string) string {
 	meteredTasks := make(map[string]string)
-	var requestURL = fmt.Sprint("http://", host, ":31300/getid/", dockerId)
+	var requestURL = fmt.Sprint("http://wedge-fb-1:3000/service?id=", dockerId)
 	content, err := getContent(requestURL)
-	taskName := strings.TrimSpace(string(content[:]))
+	var mesosTaskName TaskNameData
+	err = json.Unmarshal(content, &mesosTaskName)
 	if err != nil {
 		glog.Error("Error talking to metered service:", err)
 		return ""
 	}
 
+	var taskName = mesosTaskName.Result
+	if taskName == "" {
+		return ""
+	}
+
 	meteredTasks[dockerId] = taskName
 	if taskName, ok := meteredTasks[dockerId]; ok {
-		if ContainerMetered(taskName) {
+		if TorcContainerMetered(taskName) {
 			return taskName
 		} else {
 			return ""
