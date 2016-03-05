@@ -102,6 +102,10 @@ func getContent(url string) ([]byte, error) {
 	defer resp.Body.Close()
 
 	body, err := ioutil.ReadAll(resp.Body)
+	//if strings.Contains(url, "fetch?names") && strings.Contains(url, "bladerunner4"){
+	//	fmt.Printf("%s", body)
+	//}
+	
 	if err != nil {
 		return nil, err
 	}
@@ -117,6 +121,7 @@ func meteredTask(host string, dockerId string) string {
 	err = json.Unmarshal(content, &mesosTaskName)
 	if err != nil {
 		glog.Error("Error talking to metered service:", err)
+		glog.Error("content:",content)
 		return ""
 	}
 
@@ -188,6 +193,11 @@ func collectData(host string, contextStore *ContextList) GenericData {
 	err = json.Unmarshal(response, &pcpMetric)
 	if err != nil {
 		glog.Error("Failed unmarshalling metric json. Error:", err)
+		//tries to get new context for existing host when host comes back online
+		//uncomment line 106 - 107 to see the logs
+		var newHost = make(map[string]string)
+		newHost[host]=host
+		contextStore.UpdateContext(newHost)
 		return GenericData{}
 	}
 
