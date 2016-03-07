@@ -64,3 +64,7 @@ func NewContext() *ContextList {
 func (contextList *ContextList) addContext(host string, context int) {
 	contextList.list[host] = context
 }
+
+func (contextList *ContextList) Length() int {
+	return len(contextList.list)
+}

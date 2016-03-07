@@ -108,11 +108,22 @@ func main() {
 
 		if time.Now().Sub(startTime) > 300*time.Second {
 			glog.Fatal("Could not talk to torc to obtain host after 5 minutes, exiting.")
+			os.Exit(1)
 		}
 	}
 
-	contextStore.UpdateContext(hosts)
+	startTime = time.Now()
+	for contextStore.Length() < len(hosts) {
+		glog.Error("Could not reach pcp on host, retrying in 5 seconds.")
+		time.Sleep(time.Second * 5)
+		contextStore.UpdateContext(hosts)
 
+		if time.Now().Sub(startTime) > 300*time.Second {
+			glog.Fatal("Could not reach pcp on host to obtain context after 5 minutes, exiting.")
+			os.Exit(1)
+		}
+	}
+	
 	GetInstanceMapping(contextStore)
 
 	doWork(contextStore)
