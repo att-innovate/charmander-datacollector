@@ -112,12 +112,13 @@ func main() {
 		}
 	}
 
+	contextStore.UpdateContext(hosts)
+	//waits for all node to be up before starting work
 	startTime = time.Now()
 	for contextStore.Length() < len(hosts) {
 		glog.Error("Could not reach pcp on host, retrying in 5 seconds.")
 		time.Sleep(time.Second * 5)
 		contextStore.UpdateContext(hosts)
-
 		if time.Now().Sub(startTime) > 300*time.Second {
 			glog.Fatal("Could not reach pcp on host to obtain context after 5 minutes, exiting.")
 			os.Exit(1)
