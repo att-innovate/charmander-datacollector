@@ -25,7 +25,7 @@ package main
 import (
 	"flag"
 	"time"
-
+	"fmt"
 	"github.com/golang/glog"
 	"strconv"
 	"os"
@@ -98,6 +98,7 @@ func init() {
 }
 
 func main() {
+	fmt.Println("Datacollector version 3.7.2014.5.54")
 	var contextStore = NewContext()
 	var hosts = getTorcNodes(config.TorcHost)
 	var startTime = time.Now()
