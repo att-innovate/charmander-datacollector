@@ -58,7 +58,7 @@ func init() {
 		&config.TorcHost,
 		"source_torc_host",
 		"wedge-fb-1:3000",
-		"Redis IP Address:Port",
+		"ToRC Address:Port",
 	)
 
 	flag.StringVar(
