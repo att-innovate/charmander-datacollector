@@ -110,9 +110,9 @@ func getContent(url string) ([]byte, error) {
 	return body, nil
 }
 
-func meteredTask(host string, dockerId string) string {
+func meteredTask(host string, dockerId string, controller string) string {
 	meteredTasks := make(map[string]string)
-	var requestURL = fmt.Sprint("http://wedge-fb-1:3000/service?id=", dockerId)
+	var requestURL = fmt.Sprint("http://", controller, "/service?id=", dockerId)
 	content, err := getContent(requestURL)
 	var mesosTaskName TaskNameData
 	err = json.Unmarshal(content, &mesosTaskName)
@@ -129,7 +129,7 @@ func meteredTask(host string, dockerId string) string {
 
 	meteredTasks[dockerId] = taskName
 	if taskName, ok := meteredTasks[dockerId]; ok {
-		if TorcContainerMetered(taskName) {
+		if TorcContainerMetered(taskName, controller) {
 			return taskName
 		} else {
 			return ""
@@ -249,7 +249,7 @@ func getData(host string, context int, suffix string) []byte {
 	}
 }
 
-func processData(genericData GenericData) {
+func processData(genericData GenericData, config Config) {
 	var host = genericData.host
 	var data = genericData.data
 	var instanceIdNameMapping = genericData.datamap
@@ -292,7 +292,7 @@ func processData(genericData GenericData) {
 			processNetworkData(host, instanceData, interfaceName)
 		}
 
-		var taskName = getTaskName(host, instanceIdNameMapping["cgroup.memory.usage"][instanceId])
+		var taskName = getTaskName(host, instanceIdNameMapping["cgroup.memory.usage"][instanceId], config.TorcHost)
 
 		if len(taskName) < 1{
 			continue
@@ -480,13 +480,13 @@ func processStatsData(host string, data []MetricModel, taskName string){
 	}
 }
 
-func getTaskName(host string, id string) string{
+func getTaskName(host string, id string, controller string) string{
 	if !(strings.Contains(id, "docker")) || len(id) < 8 {
 		return ""
 	}
 	i := strings.LastIndex(id, "/")
 	dockerId := id[i+1:]
-	return meteredTask(host, dockerId)
+	return meteredTask(host, dockerId, controller)
 }
 
 func filterByName(metrics []MetricModel, metricName string) []MetricModel {

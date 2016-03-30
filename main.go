@@ -45,8 +45,6 @@ var PcpMetrics = []string{
 }
 
 func init() {
-	//need to switch ip when deploying for prod vs local dev
-	//var redisHost = flag.String("source_redis_host", "127.0.0.1:6379", "Redis IP Address:Port")
 	flag.StringVar(
 		&config.RedisHost,
 		"source_redis_host",
@@ -98,7 +96,7 @@ func init() {
 }
 
 func main() {
-	fmt.Println("Datacollector version 3.7.2014.5.54")
+	fmt.Println("Datacollector version 3.30.2015.5.55")
 	var contextStore = NewContext()
 	var hosts = getTorcNodes(config.TorcHost)
 	var startTime = time.Now()
@@ -149,7 +147,7 @@ func doWork(contextStore *ContextList) {
 			for {
 				var responseData = collectData(host, contextStore)
 				if responseData.host != "" {
-					processData(responseData)
+					processData(responseData, config)
 				}
 				time.Sleep(time.Second * duration)
 			}
