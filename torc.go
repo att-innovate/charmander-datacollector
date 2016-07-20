@@ -39,8 +39,8 @@ func getTorcNodes(url string) map[string]string {
 	return result
 }
 
-func TorcContainerMetered(containerName string) bool {
-	content, err := getContent(fmt.Sprint("http://wedge-fb-1:3000/services/metered"))
+func TorcContainerMetered(containerName string, controller string) bool {
+	content, err := getContent(fmt.Sprint("http://", controller, "/services/metered"))
 	if err != nil {
 		fmt.Println("Cannot get metered task from torc.", err)
 	}

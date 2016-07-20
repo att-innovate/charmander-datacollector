@@ -45,8 +45,6 @@ var PcpMetrics = []string{
 }
 
 func init() {
-	//need to switch ip when deploying for prod vs local dev
-	//var redisHost = flag.String("source_redis_host", "127.0.0.1:6379", "Redis IP Address:Port")
 	flag.StringVar(
 		&config.RedisHost,
 		"source_redis_host",
@@ -58,7 +56,7 @@ func init() {
 		&config.TorcHost,
 		"source_torc_host",
 		"wedge-fb-1:3000",
-		"Redis IP Address:Port",
+		"ToRC Address:Port",
 	)
 
 	flag.StringVar(
@@ -149,7 +147,7 @@ func doWork(contextStore *ContextList) {
 			for {
 				var responseData = collectData(host, contextStore)
 				if responseData.host != "" {
-					processData(responseData)
+					processData(responseData, config)
 				}
 				time.Sleep(time.Second * duration)
 			}
