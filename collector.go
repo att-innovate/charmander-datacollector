@@ -112,7 +112,7 @@ func getContent(url string) ([]byte, error) {
 
 func meteredTask(host string, dockerId string) string {
 	meteredTasks := make(map[string]string)
-	var requestURL = fmt.Sprint("http://wedge-fb-1:3000/service?id=", dockerId)
+	var requestURL = fmt.Sprint("http://wedge:3000/service?id=", dockerId)
 	content, err := getContent(requestURL)
 	var mesosTaskName TaskNameData
 	err = json.Unmarshal(content, &mesosTaskName)
@@ -361,7 +361,7 @@ func processNetworkData(host string, data []MetricModel, interfaceName string){
 	}
 
 	if len(filteredData4) < 1 || len (filteredData5) < 1 {
-		glog.Error("Error: filteredData length is 0",filteredData4,filteredData5)
+		//glog.Error("Error: filteredData length is 0",filteredData4,filteredData5)
 		return
 	}
 
@@ -374,6 +374,7 @@ func processNetworkData(host string, data []MetricModel, interfaceName string){
 		PreviousValues.AddNetworkMetrics(host, interfaceName, metrics)
 	} else {
 		var timeDelta = filteredData4[0].Timestamp - PreviousValues.SearchByInterfaceHost(host, interfaceName).TimeStamp
+		timeDelta++//fixes divide by 0 issue on startup
 		var networkInBytesPoints = (filteredData4[0].Value - PreviousValues.SearchByInterfaceHost(host, interfaceName).NetworkInBytes) / timeDelta
 		var networkOutBytesPoints = (filteredData5[0].Value - PreviousValues.SearchByInterfaceHost(host, interfaceName).NetworkOutBytes) / timeDelta
 

@@ -98,7 +98,7 @@ func init() {
 }
 
 func main() {
-	fmt.Println("Datacollector version 3.7.2014.5.54")
+	fmt.Println("Datacollector version 7.19.2016.15.40")
 	var contextStore = NewContext()
 	var hosts = getTorcNodes(config.TorcHost)
 	var startTime = time.Now()
@@ -154,6 +154,7 @@ func doWork(contextStore *ContextList) {
 				time.Sleep(time.Second * duration)
 			}
 		}(host, contextStore)
+
 	}
 
 	keepAlive := make(chan int, 1)
