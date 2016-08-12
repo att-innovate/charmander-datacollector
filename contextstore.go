@@ -24,6 +24,7 @@ package main
 
 import (
 	"encoding/json"
+	"time"
 	"fmt"
 )
 
@@ -37,6 +38,8 @@ type ContextList struct {
 
 func (instanceStore *ContextList) UpdateContext(hosts map[string]string) {
 
+	unreachableHost := make(map[string]int)
+
 	fmt.Println("Updating pcp Context")
 
 	for _, host := range hosts {
@@ -44,16 +47,23 @@ func (instanceStore *ContextList) UpdateContext(hosts map[string]string) {
 		content, err := getContent(fmt.Sprint("http://", host, ":44323/pmapi/context?hostspec=localhost&polltimeout=120"))
 		if err != nil {
 			fmt.Println("Cannot get context from:", host, ".", err)
-			continue
-		}
+			if val, ok := unreachableHost[host]; ok {
+			    unreachableHost[host]=val+1
+			    continue
+			} else if val > 5{
+				break;
+			}
+		} else {
 
-		var context contextObj
-		err = json.Unmarshal(content, &context)
-		if err != nil {
-			fmt.Println("Update Context json error:", err)
+			var context contextObj
+			err = json.Unmarshal(content, &context)
+			if err != nil {
+				fmt.Println("Update Context json error:", err)
 
+			}
+			instanceStore.addContext(host, context.Id)
 		}
-		instanceStore.addContext(host, context.Id)
+		instanceStore.retryHost(host)
 	}
 }
 
@@ -67,4 +77,29 @@ func (contextList *ContextList) addContext(host string, context int) {
 
 func (contextList *ContextList) Length() int {
 	return len(contextList.list)
+}
+
+func (contextList *ContextList) retryHost(host string){
+	go func(host string, contextList *ContextList) {
+		for {
+			time.Sleep(time.Second * 300)
+			fmt.Println("Refreshing pcp context on: ", host)
+			contextList.getContext(host)
+		}
+	}(host, contextList)
+}
+
+func (contextList *ContextList) getContext(host string){
+	content, err := getContent(fmt.Sprint("http://", host, ":44323/pmapi/context?hostspec=localhost&polltimeout=120"))
+	if err != nil {
+		fmt.Println("Cannot get context from:", host, ".", err)
+	}
+
+	var context contextObj
+	err = json.Unmarshal(content, &context)
+	if err != nil {
+		fmt.Println("GetContext json error:", err)
+
+	}
+	contextList.addContext(host, context.Id)
 }

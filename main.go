@@ -96,7 +96,7 @@ func init() {
 }
 
 func main() {
-	fmt.Println("Datacollector version 7.19.2016.15.40")
+	fmt.Println("Datacollector version 8.11.2016.18.02")
 	var contextStore = NewContext()
 	var hosts = getTorcNodes(config.TorcHost)
 	var startTime = time.Now()
