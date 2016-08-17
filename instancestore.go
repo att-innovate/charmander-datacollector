@@ -29,14 +29,19 @@ type InstanceData struct {
 	Value string
 }
 
-type InstanceStore []InstanceData
+var counter = 0
 
+type InstanceStore [1000]InstanceData
 func NewInstanceStore() *InstanceStore {
 	return &InstanceStore{}
 }
 
 func (instanceStore *InstanceStore) AddInstanceData(instanceData InstanceData) {
-	*instanceStore = append(*instanceStore, instanceData)
+	instanceStore[counter] = instanceData
+	counter++
+	if counter > 999{
+		counter = 0
+	}
 }
 
 func (instanceStore InstanceStore) SearchByHost(host string) InstanceStore {
@@ -65,9 +70,11 @@ func instancefilterByInstanceId(instancedata InstanceStore, instanceId int64) In
 
 func instanceFilter(instancestore InstanceStore, fn func(InstanceData) bool) InstanceStore {
 	var results InstanceStore
+	var count = 0
 	for _, value := range instancestore {
 		if fn(value) {
-			results = append(results, value)
+			results[count] = value
+			count++
 		}
 	}
 	return results
